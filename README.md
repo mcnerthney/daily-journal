@@ -16,6 +16,8 @@ Browser → nginx (port 3000)
 
 Requires Docker and Docker Compose.
 
+_⚠️ After updating, the server now depends on `bcryptjs` and `jsonwebtoken`. If running locally or rebuilding, make sure to reinstall packages (`cd server && npm install`)._
+
 ```bash
 docker compose up --build
 ```
@@ -24,18 +26,25 @@ Then open **http://localhost:3000**
 
 That's it. MongoDB data is stored in a named Docker volume (`mongo_data`) so it survives restarts.
 
-## REST API
+## REST API (authentication required)
+
+The journal now supports per-user auth; all `/api/entries` routes require a **Bearer** token obtained via login.
 
 | Method | Path                  | Description              |
 |--------|-----------------------|--------------------------|
-| GET    | /api/health           | Health check             |
-| GET    | /api/entries          | All entries as JSON map  |
-| GET    | /api/entries/:date    | Single day entry         |
+| POST   | /api/register         | Create a new user (email/password) |
+| POST   | /api/login            | Obtain JWT token by credentials |
+| GET    | /api/health           | Health check (no auth)   |
+| GET    | /api/entries          | All entries for logged‑in user |
+| GET    | /api/entries/:date    | Single day entry for user |
 | PUT    | /api/entries/:date    | Create / update a day    |
 | DELETE | /api/entries/:date    | Delete a day             |
 
 Dates use `YYYY-MM-DD` format.
 
+> **Existing data notice:** After enabling auth, only entries with a `userId` field are returned. You can migrate old documents by updating them in Mongo (e.g. `db.entries.updateMany({}, { $set: { userId: "<someId>" } })`) or simply start fresh per user.
+
+For authenticated endpoints include `Authorization: Bearer <token>` header.
 ## Development (no Docker)
 
 Start MongoDB locally, then:

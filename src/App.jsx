@@ -3,6 +3,27 @@ import { io } from "socket.io-client";
 
 const API = "/api";
 
+// auth helper methods
+async function doLogin(email, password) {
+  const res = await fetch(`${API}/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error("login failed");
+  return res.json(); // { token }
+}
+
+async function doRegister(email, password) {
+  const res = await fetch(`${API}/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error("register failed");
+  return res.json();
+}
+
 const MOODS = [
   { label: "Awful", emoji: "😞", color: "#ef4444", value: 1 },
   { label: "Bad",   emoji: "😕", color: "#f97316", value: 2 },
@@ -36,18 +57,26 @@ const formatDate  = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US",
   weekday: "long", month: "long", day: "numeric", year: "numeric",
 });
 
-const fetchAllEntries = async () => {
-  const res = await fetch(`${API}/entries`);
-  if (!res.ok) throw new Error("fetch failed");
+const fetchAllEntries = async (headers = {}) => {
+  const res = await fetch(`${API}/entries`, { headers });
+  if (!res.ok) {
+    const err = new Error("fetch failed");
+    if (res.status === 401) err.code = 401;
+    throw err;
+  }
   return res.json();
 };
-const saveEntry = async (date, data) => {
+const saveEntry = async (date, data, headers = {}) => {
   const res = await fetch(`${API}/entries/${date}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error("save failed");
+  if (!res.ok) {
+    const err = new Error("save failed");
+    if (res.status === 401) err.code = 401;
+    throw err;
+  }
 };
 
 // ── UI primitives ─────────────────────────────────────────────────────────────
@@ -192,15 +221,30 @@ function SaveIndicator({ status }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const [token,          setToken]         = useState(localStorage.getItem("token") || "");
   const [view,           setView]          = useState("today");
+
+  // keep localStorage in sync
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem("token", token);
+    } else {
+      localStorage.removeItem("token");
+    }
+  }, [token]);
   const [entries,        setEntries]       = useState({});
   const [loading,        setLoading]       = useState(true);
   const [saveStatus,     setSaveStatus]    = useState("idle");
   const [customMedInput, setCustomMedInput]= useState("");
   const [connected,      setConnected]     = useState(false);
+  const [authMode,       setAuthMode]       = useState("login"); // or register
+  const [authError,      setAuthError]      = useState("");
   const [viewers,        setViewers]       = useState(1);
   const [toast,          setToast]         = useState({message:"",visible:false});
   const today = getTodayKey();
+
+  // headers helper including auth token
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
   const todayEntry = entries[today] || {};
 
   // Track which saves originated here so we don't flash toast for own updates
@@ -214,8 +258,10 @@ export default function App() {
   }, []);
 
   // ── Socket.io connection ────────────────────────────────────────────────────
-  useEffect(() => {
-    const socket = io({ transports: ["websocket", "polling"] });
+  useEffect(() => {    if (!token) return;    const socket = io({
+      transports: ["websocket", "polling"],
+      auth: { token },
+    });
 
     socket.on("connect",    () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
@@ -244,27 +290,39 @@ export default function App() {
     });
 
     return () => socket.disconnect();
-  }, [today, showToast]);
+  }, [today, showToast, token]);
 
   // ── Load all entries on mount ───────────────────────────────────────────────
   useEffect(() => {
-    fetchAllEntries().then(setEntries).catch(console.error).finally(() => setLoading(false));
-  }, []);
+    if (!token) return;
+    setLoading(true);
+    fetchAllEntries(authHeaders)
+      .then(setEntries)
+      .catch((err) => {
+        console.error(err);
+        if (err.code === 401) setToken("");
+      })
+      .finally(() => setLoading(false));
+  }, [token]);
 
   // ── Persist to MongoDB ──────────────────────────────────────────────────────
   const persistEntry = useCallback(async (date, data) => {
     setSaveStatus("saving");
     myPendingSaves.current.add(date); // mark as own save
     try {
-      await saveEntry(date, data);
+      await saveEntry(date, data, authHeaders);
       setSaveStatus("saved");
       setTimeout(() => setSaveStatus("idle"), 2000);
-    } catch {
+    } catch (err) {
       myPendingSaves.current.delete(date);
+      if (err.code === 401) {
+        setToken("");
+        return;
+      }
       setSaveStatus("error");
       setTimeout(() => setSaveStatus("idle"), 3000);
     }
-  }, []);
+  }, [authHeaders]);
 
   const updateEntry = useCallback((updates) => {
     const merged = { ...todayEntry, ...updates };
@@ -292,6 +350,48 @@ export default function App() {
   const textareaStyle = {...inputStyle,width:"100%",resize:"vertical",lineHeight:1.6};
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const logout = () => setToken("");
+
+  if (!token) {
+    // simple auth screen
+    return (
+      <div style={{minHeight:"100vh",background:"#0a0a10",color:"#e8e8f0",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{width:300,background:"#12121a",padding:24,borderRadius:12}}>
+          <h2 style={{marginBottom:16,color:"#c9b8ff",textAlign:"center"}}>{authMode === "login" ? "Sign In" : "Register"}</h2>
+          <AuthForm
+            mode={authMode}
+            onSubmit={async (email, pass) => {
+              setAuthError("");
+              try {
+                if (authMode === "login") {
+                  const { token } = await doLogin(email, pass);
+                  setToken(token);
+                } else {
+                  await doRegister(email, pass);
+                  setAuthMode("login");
+                }
+              } catch (e) {
+                setAuthError(e.message);
+              }
+            }}
+          />
+          <div style={{marginTop:12,textAlign:"center"}}>
+            {authMode === "login" ? (
+              <button onClick={() => setAuthMode("register")} style={{background:"none",border:"none",color:"#4ade80",cursor:"pointer"}}>
+                Need an account?
+              </button>
+            ) : (
+              <button onClick={() => setAuthMode("login")} style={{background:"none",border:"none",color:"#4ade80",cursor:"pointer"}}>
+                Have an account?
+              </button>
+            )}
+          </div>
+          {authError && <div style={{color:"#ef4444",marginTop:8,fontSize:13,textAlign:"center"}}>{authError}</div>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{minHeight:"100vh",background:"#0a0a10",color:"#e8e8f0"}}>
       <style>{`
@@ -324,6 +424,9 @@ export default function App() {
                 </button>
               ))}
             </div>
+            <button onClick={logout} style={{marginLeft:"12px",padding:"7px 16px",borderRadius:"10px",border:"1px solid #ef4444",background:"#ef444422",color:"#ef4444",cursor:"pointer",fontSize:"13px",fontWeight:500}}>
+              Log out
+            </button>
           </div>
           {view==="today"&&(
             <div style={{marginTop:"14px"}}>
@@ -423,5 +526,38 @@ export default function App() {
       {/* Toast for remote updates */}
       <Toast message={toast.message} visible={toast.visible}/>
     </div>
+  );
+}
+
+// small component to capture email/password
+function AuthForm({ mode, onSubmit }) {
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const submit = (e) => {
+    e.preventDefault();
+    onSubmit(email, pass);
+  };
+  return (
+    <form onSubmit={submit} style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        style={{padding:8,borderRadius:6,border:"1px solid #2a2a3a",background:"#0e0e16",color:"#e8e8f0"}}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={pass}
+        onChange={(e) => setPass(e.target.value)}
+        required
+        style={{padding:8,borderRadius:6,border:"1px solid #2a2a3a",background:"#0e0e16",color:"#e8e8f0"}}
+      />
+      <button type="submit" style={{padding:8,borderRadius:6,background:"#4ade80",color:"#0a0a10",fontWeight:600,cursor:"pointer"}}>
+        {mode === "login" ? "Sign in" : "Create account"}
+      </button>
+    </form>
   );
 }
