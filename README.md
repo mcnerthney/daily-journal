@@ -1,0 +1,64 @@
+# 📓 Daily Journal
+
+A personal daily tracking app for mood, medication, nutrition, hygiene, and house cleaning.
+Data is stored in **MongoDB** — persists forever, across browsers and devices.
+
+## Architecture
+
+```
+Browser → nginx (port 3000)
+             ├── /         → React static files
+             └── /api/*    → Express API (port 4000)
+                                └── MongoDB (port 27017, internal only)
+```
+
+## Quick Start
+
+Requires Docker and Docker Compose.
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:3000**
+
+That's it. MongoDB data is stored in a named Docker volume (`mongo_data`) so it survives restarts.
+
+## REST API
+
+| Method | Path                  | Description              |
+|--------|-----------------------|--------------------------|
+| GET    | /api/health           | Health check             |
+| GET    | /api/entries          | All entries as JSON map  |
+| GET    | /api/entries/:date    | Single day entry         |
+| PUT    | /api/entries/:date    | Create / update a day    |
+| DELETE | /api/entries/:date    | Delete a day             |
+
+Dates use `YYYY-MM-DD` format.
+
+## Development (no Docker)
+
+Start MongoDB locally, then:
+
+```bash
+# Terminal 1 — backend
+cd server && npm install && MONGO_URI=mongodb://localhost:27017 npm run dev
+
+# Terminal 2 — frontend
+npm install && npm run dev
+```
+
+## Features
+
+| Section    | What it tracks                                          |
+|------------|---------------------------------------------------------|
+| 💭 Mood    | 5-level emoji scale                                     |
+| 💊 Meds    | Morning/evening/vitamins/supplements + custom entries   |
+| 🥗 Food    | Meals, water, free-text food notes                      |
+| 🚿 Hygiene | Teeth AM/PM, bath/shower, skincare                      |
+| 🏠 Cleaning| Dishes, laundry, vacuum, trash, surfaces, bathroom      |
+| 📝 Notes   | Free-form daily journal entry                           |
+
+- Real-time **save indicator** (Saving… / ✓ Saved / Save failed)
+- **Wellness score** bar updated live
+- **History tab** shows all past entries

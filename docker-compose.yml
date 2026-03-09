@@ -1,0 +1,31 @@
+services:
+
+  mongo:
+    image: mongo:7
+    container_name: journal-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    # Not exposed externally — only reachable by the api service
+
+  api:
+    build: ./server
+    container_name: journal-api
+    restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      PORT: 4000
+    depends_on:
+      - mongo
+
+  web:
+    build: .
+    container_name: journal-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  mongo_data:
