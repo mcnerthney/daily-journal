@@ -7,14 +7,12 @@ on:
     branches: [main]
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   REGION: us-central1
   API_SERVICE: journal-api
   WEB_SERVICE: journal-web
-  REGISTRY: gcr.io
 
 jobs:
-  # ── Job 1: Lint & Test ──────────────────────────────────────────────────────
+  # ── Job 1: Test ─────────────────────────────────────────────────────────────
   test:
     name: Lint & Test
     runs-on: ubuntu-latest
@@ -29,37 +27,19 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install frontend deps
-        run: npm ci
-
-      - name: Build frontend (type-check)
-        run: npm run build
+      - name: Install & build frontend
+        run: npm ci && npm run build
 
       - name: Install server deps
         working-directory: server
         run: npm ci
 
-      - name: Check server starts (smoke test)
-        working-directory: server
-        run: |
-          # Start server with a dummy mongo URI — just check it doesn't crash at import
-          timeout 5s node --input-type=module <<'EOF' || true
-          import express from "express";
-          import { createServer } from "http";
-          import { Server } from "socket.io";
-          console.log("✅ Server imports OK");
-          EOF
-
-  # ── Job 2: Build & Push Docker Images ──────────────────────────────────────
-  build:
-    name: Build & Push Images
+  # ── Job 2: Build, Push & Deploy ─────────────────────────────────────────────
+  deploy:
+    name: Build & Deploy
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    outputs:
-      api_image: ${{ steps.meta-api.outputs.image }}
-      web_image: ${{ steps.meta-web.outputs.image }}
 
     steps:
       - name: Checkout
@@ -73,93 +53,74 @@ jobs:
       - name: Configure Docker for GCR
         run: gcloud auth configure-docker --quiet
 
-      - name: Set image tags
-        id: meta-api
+      # Build images — set shell variables once, use them everywhere in this job
+      - name: Build & push images
+        env:
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          API_URL: ${{ secrets.API_URL }}
         run: |
-          SHA="${{ github.sha }}"
-          IMAGE="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.API_SERVICE }}"
-          echo "image=${IMAGE}:${SHA::8}" >> $GITHUB_OUTPUT
-          echo "latest=${IMAGE}:latest"   >> $GITHUB_OUTPUT
+          SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          REGISTRY="gcr.io/${PROJECT_ID}"
 
-      - name: Set web image tag
-        id: meta-web
-        run: |
-          SHA="${{ github.sha }}"
-          IMAGE="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.WEB_SERVICE }}"
-          echo "image=${IMAGE}:${SHA::8}" >> $GITHUB_OUTPUT
-          echo "latest=${IMAGE}:latest"   >> $GITHUB_OUTPUT
+          API_IMAGE="${REGISTRY}/${{ env.API_SERVICE }}:${SHA}"
+          WEB_IMAGE="${REGISTRY}/${{ env.WEB_SERVICE }}:${SHA}"
 
-      - name: Build & push API image
-        run: |
-          IMAGE="${{ steps.meta-api.outputs.image }}"
-          LATEST="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.API_SERVICE }}:latest"
-          docker build --platform linux/amd64 -t "$IMAGE" -t "$LATEST" ./server
-          docker push "$IMAGE"
-          docker push "$LATEST"
+          echo "API_IMAGE=${API_IMAGE}" >> $GITHUB_ENV
+          echo "WEB_IMAGE=${WEB_IMAGE}" >> $GITHUB_ENV
 
-      - name: Build & push Web image
-        run: |
-          IMAGE="${{ steps.meta-web.outputs.image }}"
-          LATEST="${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.WEB_SERVICE }}:latest"
+          # Build & push API
+          docker build --platform linux/amd64 -t "${API_IMAGE}" ./server
+          docker push "${API_IMAGE}"
+
+          # Build & push Web
           docker build --platform linux/amd64 \
-            --build-arg API_URL="${{ secrets.API_URL }}" \
-            -t "$IMAGE" -t "$LATEST" \
+            --build-arg API_URL="${API_URL}" \
+            -t "${WEB_IMAGE}" \
             -f Dockerfile.cloudrun .
-          docker push "$IMAGE"
-          docker push "$LATEST"
+          docker push "${WEB_IMAGE}"
 
-  # ── Job 3: Deploy to Cloud Run ──────────────────────────────────────────────
-  deploy:
-    name: Deploy to Cloud Run
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      - name: Deploy API to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.API_SERVICE }} \
+            --image "${{ env.API_IMAGE }}" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 4000 \
+            --memory 256Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --update-secrets "MONGO_URI=journal-mongo-uri:latest" \
+            --quiet
 
-    steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Deploy API service
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.API_SERVICE }}
-          region:  ${{ env.REGION }}
-          image:   ${{ needs.build.outputs.api_image }}
-          secrets: |
-            MONGO_URI=journal-mongo-uri:latest
-          flags: |
-            --port=4000
-            --memory=256Mi
-            --cpu=1
-            --min-instances=0
-            --max-instances=5
-            --allow-unauthenticated
-
-      - name: Deploy Web service
-        uses: google-github-actions/deploy-cloudrun@v2
-        with:
-          service: ${{ env.WEB_SERVICE }}
-          region:  ${{ env.REGION }}
-          image:   ${{ needs.build.outputs.web_image }}
-          env_vars: |
-            API_URL=${{ secrets.API_URL }}
-          flags: |
-            --port=3000
-            --memory=256Mi
-            --cpu=1
-            --min-instances=0
-            --max-instances=5
-            --allow-unauthenticated
+      - name: Deploy Web to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.WEB_SERVICE }} \
+            --image "${{ env.WEB_IMAGE }}" \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 3000 \
+            --memory 256Mi \
+            --cpu 1 \
+            --min-instances 0 \
+            --max-instances 5 \
+            --quiet
 
       - name: Print deployment URLs
         run: |
+          WEB_URL=$(gcloud run services describe ${{ env.WEB_SERVICE }} \
+            --region ${{ env.REGION }} --format "value(status.url)")
+          API_URL=$(gcloud run services describe ${{ env.API_SERVICE }} \
+            --region ${{ env.REGION }} --format "value(status.url)")
+
           echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Service | URL |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-----|" >> $GITHUB_STEP_SUMMARY
-          WEB_URL=$(gcloud run services describe ${{ env.WEB_SERVICE }} --region ${{ env.REGION }} --format "value(status.url)")
-          API_URL=$(gcloud run services describe ${{ env.API_SERVICE }} --region ${{ env.REGION }} --format "value(status.url)")
-          echo "| 🌐 Web | $WEB_URL |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔌 API | $API_URL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service | URL |"         >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-----|"         >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Web  | ${WEB_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔌 API  | ${API_URL} |" >> $GITHUB_STEP_SUMMARY
+
+          echo ""
+          echo "🌐 Web: ${WEB_URL}"
+          echo "🔌 API: ${API_URL}"
