@@ -171,6 +171,7 @@ function EntryView({ entry, date }) {
           ))}
         </div>
       </div>
+      {entry.food_notes&&<p style={{margin:0,color:"#aaa",fontSize:"13px",lineHeight:1.6,fontStyle:"italic",borderTop:"1px solid #2a2a3a",paddingTop:"10px"}}>{entry.food_notes}</p>}
       {entry.workouts && Object.values(entry.workouts).some(v=>v>0) && (
         <div style={{marginTop:"8px",color:"#ddd",fontSize:"13px"}}>
           {WORKOUTS.map(w=>{
@@ -179,6 +180,7 @@ function EntryView({ entry, date }) {
           })}
         </div>
       )}
+
       {entry.notes&&<p style={{margin:0,color:"#aaa",fontSize:"13px",lineHeight:1.6,fontStyle:"italic",borderTop:"1px solid #2a2a3a",paddingTop:"10px"}}>{entry.notes}</p>}
     </div>
   );
@@ -293,7 +295,7 @@ export default function App() {
       } else {
         setEntries(prev => ({ ...prev, [date]: entry }));
         const label = date === today ? "today's entry" : formatDate(date);
-        //todo fix this showToast(`✨ ${label} updated by another viewer`);
+        showToast(`✨ ${label} updated by another viewer`);
       }
     });
 
