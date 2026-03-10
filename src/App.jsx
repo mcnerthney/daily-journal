@@ -52,13 +52,8 @@ const CLEANING = [
   { label: "Bathroom clean",     emoji: "🪣", key: "bathroom_clean" },
 ];
 
-const getTodayKey = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
+const getTodayKey = () =>
+  new Date().toLocaleDateString("en-CA"); 
 const formatDate  = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", {
   weekday: "long", month: "long", day: "numeric", year: "numeric",
 });
