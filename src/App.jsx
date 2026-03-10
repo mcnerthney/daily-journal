@@ -293,7 +293,7 @@ export default function App() {
       } else {
         setEntries(prev => ({ ...prev, [date]: entry }));
         const label = date === today ? "today's entry" : formatDate(date);
-        showToast(`✨ ${label} updated by another viewer`);
+        //todo fix this showToast(`✨ ${label} updated by another viewer`);
       }
     });
 
