@@ -52,8 +52,15 @@ const CLEANING = [
   { label: "Bathroom clean",     emoji: "🪣", key: "bathroom_clean" },
 ];
 
+// workout types tracked in the journal
+const WORKOUTS = [
+  { key: "pullups", label: "Pull‑ups", emoji: "💪" },
+  { key: "squats",  label: "Squats",  emoji: "🏋️" },
+  { key: "pushups", label: "Push‑ups",emoji: "🤸" },
+];
+
 const getTodayKey = () =>
-  new Date().toLocaleDateString("en-CA"); 
+new Date().toLocaleDateString("en-CA"); 
 const formatDate  = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", {
   weekday: "long", month: "long", day: "numeric", year: "numeric",
 });
@@ -149,6 +156,7 @@ function EntryView({ entry, date }) {
     {label:`🥗 ${(entry.food||[]).length}`,           active:(entry.food||[]).length>0},
     {label:`🚿 ${Object.values(entry.hygiene||{}).filter(Boolean).length}`,  active:Object.values(entry.hygiene||{}).some(Boolean)},
     {label:`🏠 ${Object.values(entry.cleaning||{}).filter(Boolean).length}`, active:Object.values(entry.cleaning||{}).some(Boolean)},
+    {label:`🏋️ ${entry.workouts ? Object.values(entry.workouts).filter(v=>v>0).length : 0}`, active:entry.workouts && Object.values(entry.workouts).some(v=>v>0)},
   ];
   return (
     <div style={{background:"#0e0e16",border:"1px solid #2a2a3a",borderRadius:"14px",padding:"18px",marginBottom:"12px"}}>
@@ -163,6 +171,14 @@ function EntryView({ entry, date }) {
           ))}
         </div>
       </div>
+      {entry.workouts && Object.values(entry.workouts).some(v=>v>0) && (
+        <div style={{marginTop:"8px",color:"#ddd",fontSize:"13px"}}>
+          {WORKOUTS.map(w=>{
+            const val = entry.workouts && entry.workouts[w.key];
+            return val > 0 ? <div key={w.key}>{w.emoji} {w.label}: {val}</div> : null;
+          })}
+        </div>
+      )}
       {entry.notes&&<p style={{margin:0,color:"#aaa",fontSize:"13px",lineHeight:1.6,fontStyle:"italic",borderTop:"1px solid #2a2a3a",paddingTop:"10px"}}>{entry.notes}</p>}
     </div>
   );
@@ -339,11 +355,16 @@ export default function App() {
     updateEntry({ [field]: { ...(todayEntry[field]||{}), [key]: !(todayEntry[field]||{})[key] } });
 
   const sortedDates = Object.keys(entries).sort().reverse();
-  const score = (e) => !e ? 0 :
-    (e.medications||[]).length + (e.food||[]).length +
-    Object.values(e.hygiene||{}).filter(Boolean).length +
-    Object.values(e.cleaning||{}).filter(Boolean).length;
-  const maxScore   = MEDICATIONS.length + FOODS.length + HYGIENE.length + CLEANING.length;
+  const score = (e) => {
+    if (!e) return 0;
+    const base =
+      (e.medications||[]).length + (e.food||[]).length +
+      Object.values(e.hygiene||{}).filter(Boolean).length +
+      Object.values(e.cleaning||{}).filter(Boolean).length;
+    const workoutScore = e.workouts ? Object.values(e.workouts).filter(v=>v>0).length : 0;
+    return base + workoutScore;
+  };
+  const maxScore   = MEDICATIONS.length + FOODS.length + HYGIENE.length + CLEANING.length + WORKOUTS.length;
   const todayScore = score(todayEntry);
   const scorePct   = Math.round((todayScore / maxScore) * 100);
 
@@ -490,6 +511,29 @@ export default function App() {
               </div>
             </Section>
 
+            <Section title="Workouts" icon="🏋️" accent="#fcd34d">
+              <div style={{display:"flex",gap:"16px",flexWrap:"wrap"}}>
+                {WORKOUTS.map(w => (
+                  <div key={w.key} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                    <span style={{fontSize:"13px",color:"#ccc"}}>{w.emoji}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={(todayEntry.workouts||{})[w.key]||0}
+                      onChange={e => updateEntry({
+                        workouts: {
+                          ...(todayEntry.workouts||{}),
+                          [w.key]: parseInt(e.target.value) || 0,
+                        }
+                      })}
+                      style={{...inputStyle,width:"60px",textAlign:"center"}}
+                    />
+                    <span style={{fontSize:"11px",color:"#888",marginTop:"4px"}}>{w.label}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
             <Section title="Journal Notes" icon="📝" accent="#a78bfa">
               <textarea placeholder="How was your day? Anything on your mind…" value={todayEntry.notes||""} onChange={e=>updateEntry({notes:e.target.value})} style={{...textareaStyle,minHeight:"120px",padding:"12px",fontSize:"14px"}}/>
             </Section>
@@ -500,6 +544,7 @@ export default function App() {
                 {label:"Meals logged",      val:(todayEntry.food||[]).length,               max:FOODS.length,      color:"#4ade80"},
                 {label:"Hygiene tasks",     val:Object.values(todayEntry.hygiene||{}).filter(Boolean).length,  max:HYGIENE.length, color:"#38bdf8"},
                 {label:"Cleaning tasks",    val:Object.values(todayEntry.cleaning||{}).filter(Boolean).length, max:CLEANING.length,color:"#f472b6"},
+                {label:"Workouts done",      val: todayEntry.workouts ? Object.values(todayEntry.workouts).filter(v=>v>0).length : 0, max: WORKOUTS.length, color:"#fcd34d"},
               ].map(s=>(
                 <div key={s.label}>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:"12px",color:"#888"}}>

@@ -67,6 +67,7 @@ npm install && npm run dev
 | 🚿 Hygiene | Teeth AM/PM, bath/shower, skincare                      |
 | 🏠 Cleaning| Dishes, laundry, vacuum, trash, surfaces, bathroom      |
 | 📝 Notes   | Free-form daily journal entry                           |
+| 🏋️ Workouts | Pull‑ups, squats, push‑ups                              |
 
 - Real-time **save indicator** (Saving… / ✓ Saved / Save failed)
 - **Wellness score** bar updated live
