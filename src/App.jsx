@@ -346,27 +346,27 @@ export default function App() {
     }
   }, [authHeaders]);
 
+  // general debounced updater used by most UI interactions
+  const saveTimer = useRef(null);
   const updateEntry = useCallback((updates) => {
     const merged = { ...todayEntry, ...updates };
     setEntries(prev => ({ ...prev, [today]: merged }));
-    persistEntry(today, merged);
+    // debounce actual persistence so rapid changes don't spam the server
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      persistEntry(today, merged);
+    }, 300);
   }, [today, todayEntry, persistEntry]);
 
-  // notes-specific debounced updater to avoid rapid saves while typing
-  const notesDebounce = useRef(null);
   const updateNotes = useCallback((text) => {
-    const merged = { ...todayEntry, notes: text };
-    setEntries(prev => ({ ...prev, [today]: merged }));
-    if (notesDebounce.current) clearTimeout(notesDebounce.current);
-    notesDebounce.current = setTimeout(() => {
-      persistEntry(today, merged);
-    }, 500); // half-second delay
-  }, [today, todayEntry, persistEntry]);
+    // delegate to the shared updater; it already handles debouncing
+    updateEntry({ notes: text });
+  }, [updateEntry]);
 
   // clear pending timeout when component unmounts
   useEffect(() => {
     return () => {
-      if (notesDebounce.current) clearTimeout(notesDebounce.current);
+      if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, []);
 
