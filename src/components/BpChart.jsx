@@ -41,7 +41,7 @@ export default function BpChart({ entries }) {
                 })}
                 {/* y-axis ticks only for values actually recorded */}
                 {(() => {
-                    const vals = Array.from(new Set([...sysArr, ...diaArr].map(d => d.val))).sort((a,b)=>a-b);
+                    const vals = Array.from(new Set([...sysArr, ...diaArr].map(d => d.val))).sort((a, b) => a - b);
                     return vals.map(v => {
                         const y = height - padding - (max ? (v / max) * (height - 2 * padding) : 0);
                         return (
