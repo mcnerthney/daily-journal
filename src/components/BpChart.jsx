@@ -4,16 +4,26 @@ export default function BpChart({ entries }) {
     const dates = Object.keys(entries).sort();
     if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No data</div>;
 
-    // build arrays
-    const sysArr = dates.map(date => ({ date, val: entries[date].systolic || 0 }));
-    const diaArr = dates.map(date => ({ date, val: entries[date].diastolic || 0 }));
-    const max = Math.max(...sysArr.map(d => d.val), ...diaArr.map(d => d.val));
+    // build arrays, excluding missing/zero readings
+    const sysArr = dates
+        .map(date => ({ date, val: entries[date].systolic }))
+        .filter(d => d.val != null && d.val > 0);
+    const diaArr = dates
+        .map(date => ({ date, val: entries[date].diastolic }))
+        .filter(d => d.val != null && d.val > 0);
+    const max = Math.max(
+        ...sysArr.map(d => d.val),
+        ...diaArr.map(d => d.val),
+        0
+    );
 
     const width = 700, height = 240, padding = 40;
     const colors = { systolic: '#fb923c', diastolic: '#4ade80' };
 
     const buildPoints = (arr) =>
-        arr.map((d, i) => {
+        arr.map((d) => {
+            // determine index of this date in full series to place on correct x
+            const i = dates.indexOf(d.date);
             const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
             const y = height - padding - (max ? (d.val / max) * (height - 2 * padding) : 0);
             return [x, y];
