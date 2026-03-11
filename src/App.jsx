@@ -27,6 +27,7 @@ import Toast from "./components/Toast";
 import SaveIndicator from "./components/SaveIndicator";
 import AuthForm from "./components/AuthForm";
 import WorkoutChart from "./components/WorkoutChart";
+import BpChart from "./components/BpChart";
 
 // auth helper methods
 async function doLogin(email, password) {
@@ -49,7 +50,6 @@ async function doRegister(email, password) {
   return res.json();
 }
 
-// UI primitives and small components are now imported from separate files
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
@@ -367,6 +367,31 @@ export default function App() {
               </div>
             </Section>
 
+            <Section title="Blood Pressure" icon="🩺" accent="#f472b6">
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Systolic</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={todayEntry.systolic || ""}
+                    onChange={e => updateEntry({ systolic: parseInt(e.target.value) || null })}
+                    style={{ ...inputStyle, width: "80px", textAlign: "center" }}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Diastolic</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={todayEntry.diastolic || ""}
+                    onChange={e => updateEntry({ diastolic: parseInt(e.target.value) || null })}
+                    style={{ ...inputStyle, width: "80px", textAlign: "center" }}
+                  />
+                </div>
+              </div>
+            </Section>
+
             <Section title="Journal Notes" icon="📝" accent="#a78bfa">
               <textarea spellCheck={true} placeholder="How was your day? Anything on your mind…" value={todayEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
             </Section>
@@ -390,6 +415,7 @@ export default function App() {
           </>
         ) : view === "chart" ? (
           <>
+            <BpChart entries={entries} />
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "#c9b8ff", marginBottom: "20px" }}>Workout Trends</h2>
             <WorkoutChart entries={entries} />
           </>

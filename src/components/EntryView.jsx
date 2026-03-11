@@ -18,6 +18,9 @@ export default function EntryView({ entry, date }) {
                 <div>
                     <div style={{ fontSize: "13px", color: "#888", marginBottom: "4px" }}>{formatDate(date)}</div>
                     {mood && <div style={{ display: "flex", alignItems: "center", gap: "6px", color: mood.color, fontWeight: 600, fontSize: "14px" }}><span style={{ fontSize: "18px" }}>{mood.emoji}</span>{mood.label}</div>}
+                    {(entry.systolic || entry.diastolic) && (
+                        <div style={{ marginTop: "4px", fontSize: "12px", color: "#aaa" }}>🩺 {entry.systolic || "--"}/{entry.diastolic || "--"}</div>
+                    )}
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     {counts.map((b, i) => (
