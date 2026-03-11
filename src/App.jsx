@@ -380,7 +380,7 @@ export default function App() {
               Log out
             </button>
           </div>
-          {view === "today" && (
+          {appView === "journal" && view === "today" && (
             <div style={{ marginTop: "14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888", marginBottom: "4px" }}>
                 <span>Today's wellness score</span>

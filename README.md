@@ -74,5 +74,5 @@ npm install && npm run dev
 | 🏋️ Workouts | Pull‑ups, squats, push‑ups                              |
 
 - Real-time **save indicator** (Saving… / ✓ Saved / Save failed)
-- **Wellness score** bar updated live
+- **Wellness score** bar (journal only) updated live
 - **History tab** shows all past entries
