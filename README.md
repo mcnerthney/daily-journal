@@ -40,6 +40,14 @@ The journal now supports per-user auth; all `/api/entries` routes require a **Be
 | PUT    | /api/entries/:date    | Create / update a day    |
 | DELETE | /api/entries/:date    | Delete a day             |
 
+# Lists API
+| Method | Path              | Description                            |
+|--------|-------------------|----------------------------------------|
+| GET    | /api/lists        | Fetch all lists owned or shared        |
+| POST   | /api/lists        | Create a new checklist (name, items, optional sharing) |
+| PUT    | /api/lists/:id    | Update a list's name/items/sharing    |
+| DELETE | /api/lists/:id    | Remove a list (owner only)             |
+
 Dates use `YYYY-MM-DD` format.
 
 > **Existing data notice:** After enabling auth, only entries with a `userId` field are returned. You can migrate old documents by updating them in Mongo (e.g. `db.entries.updateMany({}, { $set: { userId: "<someId>" } })`) or simply start fresh per user.
@@ -60,7 +68,7 @@ npm install && npm run dev
 ## Features
 
 - **Daily Journal** — track mood, medications, workouts, blood pressure, and more.
-- **Lists** — create and share multiple checklists with other users; real-time collaboration supported.
+- **Lists** — create, share, and collaborate on multiple checklists across users. Items sync live with collaborators; owners can invite others by email, who will receive access automatically.
 
 
 | Section    | What it tracks                                          |
@@ -76,3 +84,13 @@ npm install && npm run dev
 - Real-time **save indicator** (Saving… / ✓ Saved / Save failed)
 - **Wellness score** bar (journal only) updated live
 - **History tab** shows all past entries
+
+## List Feature
+Users can create any number of checklists (e.g. groceries, packing, goals) via the “Lists” feature on the home screen. Each list has:
+
+- A name and arbitrary items.
+- Real‑time updates: when one user adds/removes items, all collaborators see the change instantly.
+- Optional sharing: owners can invite others by supplying their email addresses; those users receive read/write access and will see the list in their sidebar.
+- Ownership rules: only the creator may rename or delete a list; collaborators can modify items but not sharing settings.
+
+New shared lists appear automatically for invitees upon login.
