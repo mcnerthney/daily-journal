@@ -602,17 +602,15 @@ export default function App() {
   );
 }
 
-// small component to capture email/password
-
 // simple chart per workout type
 function WorkoutChart({ entries }) {
   const dates = Object.keys(entries).sort();
   if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No workout data</div>;
 
-  const width = 700, height = 180, padding = 30;
+  const width = 300, height = 160, padding = 24; // narrower for mobile
   const colors = ["#4ade80", "#fb923c", "#fcd34d", "#38bdf8", "#a78bfa"];
 
-  // helper to construct points and max for a single series
+  // helper for single series (returns arr, pts, path, max)
   const buildSeries = (key) => {
     const arr = dates.map(date => {
       const w = entries[date].workouts || {};
@@ -628,34 +626,42 @@ function WorkoutChart({ entries }) {
     return { arr, pts, path, max: m };
   };
 
+  // responsive grid container
   return (
-    <div style={{ overflowX: 'auto' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
       {WORKOUTS.map((w, idx) => {
-        const { arr, path, max } = buildSeries(w.key);
+        const { arr, pts, path, max } = buildSeries(w.key);
         const color = colors[idx % colors.length];
         return (
-          <div key={w.key} style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <span style={{ fontSize: '18px' }}>{w.emoji}</span>
-              <span style={{ fontSize: '14px', fontWeight: 500, color: color }}>{w.label}</span>
+          <div key={w.key} style={{ flex: '1 1 140px', maxWidth: '320px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <span style={{ fontSize: '16px' }}>{w.emoji}</span>
+              <span style={{ fontSize: '13px', fontWeight: 500, color }}>{w.label}</span>
             </div>
-            <svg width={width} height={height} style={{ display: 'block' }}>
-              <rect width="100%" height="100%" fill="#12121a" />
-              <path d={path} fill="none" stroke={color} strokeWidth="2" />
-              {dates.map((date, i) => {
-                const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
-                return (
-                  <text key={i} x={x} y={height - padding + 15} fontSize="10" fill="#888" textAnchor="middle">
-                    {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+            <div style={{ position: 'relative' }}>
+              <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
+                <rect width="100%" height="100%" fill="#12121a" />
+                <path d={path} fill="none" stroke={color} strokeWidth="2" />
+                {pts.map((p, i) => (
+                  <circle key={i} cx={p[0]} cy={p[1]} r={4} fill={color}>
+                    <title>{`${new Date(arr[i].date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}: ${arr[i].val}`}</title>
+                  </circle>
+                ))}
+                {dates.map((date, i) => {
+                  const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
+                  return (
+                    <text key={i} x={x} y={height - padding + 12} fontSize="8" fill="#888" textAnchor="middle">
+                      {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                    </text>
+                  );
+                })}
+                {Array.from({ length: max + 1 }).map((_, i) => (
+                  <text key={i} x={padding - 8} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 3} fontSize="8" fill="#888" textAnchor="end">
+                    {i}
                   </text>
-                );
-              })}
-              {Array.from({ length: max + 1 }).map((_, i) => (
-                <text key={i} x={padding - 10} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 4} fontSize="10" fill="#888" textAnchor="end">
-                  {i}
-                </text>
-              ))}
-            </svg>
+                ))}
+              </svg>
+            </div>
           </div>
         );
       })}
@@ -663,6 +669,8 @@ function WorkoutChart({ entries }) {
   );
 }
 
+
+// small component to capture email/password
 function AuthForm({ mode, onSubmit }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
