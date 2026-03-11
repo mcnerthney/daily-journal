@@ -346,15 +346,8 @@ export default function App() {
     }
   }, [authHeaders]);
 
-  const updateEntry = useCallback((updates) => {
-    const merged = { ...todayEntry, ...updates };
-    setEntries(prev => ({ ...prev, [today]: merged }));
-    persistEntry(today, merged);
-  }, [today, todayEntry, persistEntry]);
-
-  // notes-specific debounced updater to avoid rapid saves while typing
-  const notesDebounce = useRef(null);
-  const updateNotes = useCallback((text) => {
+  const updateDebounce = useRef(null);
+  const updateEntry = useCallback((text) => {
     const merged = { ...todayEntry, notes: text };
     setEntries(prev => ({ ...prev, [today]: merged }));
     if (notesDebounce.current) clearTimeout(notesDebounce.current);
@@ -558,7 +551,7 @@ export default function App() {
             </Section>
 
             <Section title="Journal Notes" icon="📝" accent="#a78bfa">
-              <textarea placeholder="How was your day? Anything on your mind…" value={todayEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
+              <textarea placeholder="How was your day? Anything on your mind…" value={todayEntry.notes || ""} onChange={e => updateEntry({ notes: e.target.value })} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
             </Section>
 
             <div style={{ background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "16px", padding: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
