@@ -1,7 +1,32 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { io } from "socket.io-client";
 
-const API = "/api";
+import {
+  API,
+  getTodayKey,
+  formatDate,
+  fetchAllEntries,
+  saveEntry,
+} from "./utils";
+import {
+  MOODS,
+  MEDICATIONS,
+  FOODS,
+  HYGIENE,
+  CLEANING,
+  WORKOUTS,
+} from "./data";
+
+import ToggleChip from "./components/ToggleChip";
+import Section from "./components/Section";
+import MoodSelector from "./components/MoodSelector";
+import ScoreBar from "./components/ScoreBar";
+import EntryView from "./components/EntryView";
+import LivePill from "./components/LivePill";
+import Toast from "./components/Toast";
+import SaveIndicator from "./components/SaveIndicator";
+import AuthForm from "./components/AuthForm";
+import WorkoutChart from "./components/WorkoutChart";
 
 // auth helper methods
 async function doLogin(email, password) {
@@ -24,221 +49,7 @@ async function doRegister(email, password) {
   return res.json();
 }
 
-const MOODS = [
-  { label: "Awful", emoji: "😞", color: "#ef4444", value: 1 },
-  { label: "Bad", emoji: "😕", color: "#f97316", value: 2 },
-  { label: "Meh", emoji: "😐", color: "#eab308", value: 3 },
-  { label: "Good", emoji: "🙂", color: "#84cc16", value: 4 },
-  { label: "Great", emoji: "😄", color: "#22c55e", value: 5 },
-];
-
-const MEDICATIONS = ["Morning meds", "Evening meds", "Vitamins", "Supplements", "PRN / As needed"];
-const FOODS = [
-  { label: "Breakfast", emoji: "🌅" }, { label: "Lunch", emoji: "☀️" },
-  { label: "Dinner", emoji: "🌙" }, { label: "Snacks", emoji: "🍎" },
-  { label: "Water (8+ glasses)", emoji: "💧" }, { label: "No alcohol", emoji: "🚫🍺" },
-];
-const HYGIENE = [
-  { label: "Brushed teeth (AM)", emoji: "🪥", key: "teeth_am" },
-  { label: "Brushed teeth (PM)", emoji: "🌙", key: "teeth_pm" },
-  { label: "Bath / Shower", emoji: "🚿", key: "bath" },
-  { label: "Skincare", emoji: "✨", key: "skincare" },
-];
-const CLEANING = [
-  { label: "Dishes", emoji: "🍽️", key: "dishes" },
-  { label: "Surfaces / Counters", emoji: "🧹", key: "surfaces" },
-  { label: "Laundry", emoji: "👕", key: "laundry" },
-  { label: "Vacuum / Sweep", emoji: "🌀", key: "vacuum" },
-  { label: "Trash", emoji: "🗑️", key: "trash" },
-  { label: "Bathroom clean", emoji: "🪣", key: "bathroom_clean" },
-];
-
-// workout types tracked in the journal
-const WORKOUTS = [
-  { key: "pullups", label: "Pull‑ups", emoji: "💪" },
-  { key: "squats", label: "Squats", emoji: "🏋️" },
-  { key: "pushups", label: "Push‑ups", emoji: "🤸" },
-];
-
-const getTodayKey = () =>
-  new Date().toLocaleDateString("en-CA");
-
-const formatDate = (d) => new Date(d + "T12:00:00").toLocaleDateString("en-US", {
-  weekday: "long", month: "long", day: "numeric", year: "numeric",
-});
-
-const fetchAllEntries = async (headers = {}) => {
-  const res = await fetch(`${API}/entries`, { headers });
-  if (!res.ok) {
-    const err = new Error("fetch failed");
-    if (res.status === 401) err.code = 401;
-    throw err;
-  }
-  return res.json();
-};
-const saveEntry = async (date, data, headers = {}) => {
-  const res = await fetch(`${API}/entries/${date}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) {
-    const err = new Error("save failed");
-    if (res.status === 401) err.code = 401;
-    throw err;
-  }
-};
-
-// ── UI primitives ─────────────────────────────────────────────────────────────
-
-function ToggleChip({ label, emoji, checked, onChange, color }) {
-  return (
-    <button onClick={() => onChange(!checked)} style={{
-      display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px",
-      borderRadius: "20px",
-      border: checked ? `2px solid ${color || "#6d5acd"}` : "2px solid #2a2a3a",
-      background: checked ? (color ? color + "22" : "#6d5acd22") : "#16161f",
-      color: checked ? (color || "#b8aef0") : "#666",
-      cursor: "pointer", fontSize: "13px", fontWeight: checked ? 600 : 400,
-      transition: "all 0.15s ease", userSelect: "none",
-    }}>
-      {emoji && <span style={{ fontSize: "15px" }}>{emoji}</span>}
-      {label}
-    </button>
-  );
-}
-
-function Section({ title, icon, children, accent }) {
-  return (
-    <div style={{ background: "#12121a", border: `1px solid ${accent || "#2a2a3a"}`, borderRadius: "16px", padding: "20px", marginBottom: "16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <span style={{ fontSize: "20px" }}>{icon}</span>
-        <h3 style={{ margin: 0, fontSize: "15px", fontFamily: "'Playfair Display', serif", fontWeight: 600, color: accent || "#c9b8ff", letterSpacing: "0.02em", textTransform: "uppercase" }}>
-          {title}
-        </h3>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function MoodSelector({ value, onChange }) {
-  return (
-    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-      {MOODS.map((m) => (
-        <button key={m.value} onClick={() => onChange(value === m.value ? null : m.value)} style={{
-          display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
-          padding: "12px 16px", borderRadius: "14px",
-          border: value === m.value ? `2px solid ${m.color}` : "2px solid #2a2a3a",
-          background: value === m.value ? m.color + "22" : "#16161f",
-          cursor: "pointer", transition: "all 0.15s ease", minWidth: "60px",
-          transform: value === m.value ? "scale(1.08)" : "scale(1)",
-        }}>
-          <span style={{ fontSize: "26px" }}>{m.emoji}</span>
-          <span style={{ fontSize: "11px", color: value === m.value ? m.color : "#555", fontWeight: 500 }}>{m.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ScoreBar({ score, max, color }) {
-  const pct = max > 0 ? (score / max) * 100 : 0;
-  return (
-    <div style={{ height: "6px", background: "#2a2a3a", borderRadius: "3px", overflow: "hidden", marginTop: "6px" }}>
-      <div style={{ height: "100%", width: `${pct}%`, background: color || "#6d5acd", borderRadius: "3px", transition: "width 0.4s ease" }} />
-    </div>
-  );
-}
-
-function EntryView({ entry, date }) {
-  const mood = MOODS.find((m) => m.value === entry.mood);
-  const counts = [
-    { label: `💊 ${(entry.medications || []).length}`, active: (entry.medications || []).length > 0 },
-    { label: `🥗 ${(entry.food || []).length}`, active: (entry.food || []).length > 0 },
-    { label: `🚿 ${Object.values(entry.hygiene || {}).filter(Boolean).length}`, active: Object.values(entry.hygiene || {}).some(Boolean) },
-    { label: `🏠 ${Object.values(entry.cleaning || {}).filter(Boolean).length}`, active: Object.values(entry.cleaning || {}).some(Boolean) },
-    { label: `🏋️ ${entry.workouts ? Object.values(entry.workouts).filter(v => v > 0).length : 0}`, active: entry.workouts && Object.values(entry.workouts).some(v => v > 0) },
-  ];
-  return (
-    <div style={{ background: "#0e0e16", border: "1px solid #2a2a3a", borderRadius: "14px", padding: "18px", marginBottom: "12px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-        <div>
-          <div style={{ fontSize: "13px", color: "#888", marginBottom: "4px" }}>{formatDate(date)}</div>
-          {mood && <div style={{ display: "flex", alignItems: "center", gap: "6px", color: mood.color, fontWeight: 600, fontSize: "14px" }}><span style={{ fontSize: "18px" }}>{mood.emoji}</span>{mood.label}</div>}
-        </div>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {counts.map((b, i) => (
-            <span key={i} style={{ padding: "3px 10px", borderRadius: "10px", background: b.active ? "#6d5acd22" : "#1a1a26", color: b.active ? "#c9b8ff" : "#444", fontSize: "12px" }}>{b.label}</span>
-          ))}
-        </div>
-      </div>
-      {entry.notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.notes}</p>}
-      {entry.food_notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.food_notes}</p>}
-      {entry.workouts && Object.values(entry.workouts).some(v => v > 0) && (
-        <div style={{ marginTop: "8px", color: "#ddd", fontSize: "13px" }}>
-          {WORKOUTS.map(w => {
-            const val = entry.workouts && entry.workouts[w.key];
-            return val > 0 ? <div key={w.key}>{w.emoji} {w.label}: {val}</div> : null;
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Live indicator pill
-function LivePill({ connected, viewers }) {
-  return (
-    <div style={{
-      display: "inline-flex", alignItems: "center", gap: "6px",
-      padding: "4px 10px", borderRadius: "20px",
-      background: connected ? "#0d2d1a" : "#2a1a1a",
-      border: `1px solid ${connected ? "#22c55e44" : "#ef444444"}`,
-      fontSize: "12px",
-      color: connected ? "#4ade80" : "#f87171",
-      transition: "all 0.3s",
-    }}>
-      <span style={{
-        width: "7px", height: "7px", borderRadius: "50%",
-        background: connected ? "#22c55e" : "#ef4444",
-        boxShadow: connected ? "0 0 6px #22c55e" : "none",
-        animation: connected ? "pulse 2s infinite" : "none",
-        flexShrink: 0,
-      }} />
-      {connected ? `${viewers} viewer${viewers !== 1 ? "s" : ""} live` : "Reconnecting…"}
-    </div>
-  );
-}
-
-// Toast notification for remote updates
-function Toast({ message, visible }) {
-  return (
-    <div style={{
-      position: "fixed", bottom: "24px", left: "50%", transform: `translateX(-50%) translateY(${visible ? 0 : "80px"})`,
-      background: "#1e1e2e", border: "1px solid #6d5acd", borderRadius: "12px",
-      padding: "10px 18px", fontSize: "13px", color: "#c9b8ff",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-      transition: "transform 0.3s ease, opacity 0.3s ease",
-      opacity: visible ? 1 : 0, zIndex: 999, whiteSpace: "nowrap",
-      pointerEvents: "none",
-    }}>
-      {message}
-    </div>
-  );
-}
-
-function SaveIndicator({ status }) {
-  const map = {
-    idle: { text: "", color: "transparent" },
-    saving: { text: "Saving…", color: "#eab308" },
-    saved: { text: "✓ Saved", color: "#22c55e" },
-    error: { text: "Save failed", color: "#ef4444" },
-  };
-  const s = map[status] || map.idle;
-  return <span style={{ fontSize: "12px", color: s.color, transition: "color 0.3s", marginLeft: "12px" }}>{s.text}</span>;
-}
-
+// UI primitives and small components are now imported from separate files
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
@@ -599,106 +410,5 @@ export default function App() {
       {/* Toast for remote updates */}
       <Toast message={toast.message} visible={toast.visible} />
     </div>
-  );
-}
-
-// simple chart per workout type
-function WorkoutChart({ entries }) {
-  const dates = Object.keys(entries).sort();
-  if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No workout data</div>;
-
-  const width = 300, height = 160, padding = 24; // narrower for mobile
-  const colors = ["#4ade80", "#fb923c", "#fcd34d", "#38bdf8", "#a78bfa"];
-
-  // helper for single series (returns arr, pts, path, max)
-  const buildSeries = (key) => {
-    const arr = dates.map(date => {
-      const w = entries[date].workouts || {};
-      return { date, val: parseInt(w[key]) || 0 };
-    });
-    const m = Math.max(...arr.map(d => d.val));
-    const pts = arr.map((d, i) => {
-      const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
-      const y = height - padding - (m ? (d.val / m) * (height - 2 * padding) : 0);
-      return [x, y];
-    });
-    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
-    return { arr, pts, path, max: m };
-  };
-
-  // responsive grid container
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'center' }}>
-      {WORKOUTS.map((w, idx) => {
-        const { arr, pts, path, max } = buildSeries(w.key);
-        const color = colors[idx % colors.length];
-        return (
-          <div key={w.key} style={{ flex: '1 1 140px', maxWidth: '320px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-              <span style={{ fontSize: '16px' }}>{w.emoji}</span>
-              <span style={{ fontSize: '13px', fontWeight: 500, color }}>{w.label}</span>
-            </div>
-            <div style={{ position: 'relative' }}>
-              <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
-                <rect width="100%" height="100%" fill="#12121a" />
-                <path d={path} fill="none" stroke={color} strokeWidth="2" />
-                {pts.map((p, i) => (
-                  <circle key={i} cx={p[0]} cy={p[1]} r={4} fill={color}>
-                    <title>{`${new Date(arr[i].date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}: ${arr[i].val}`}</title>
-                  </circle>
-                ))}
-                {dates.map((date, i) => {
-                  const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
-                  return (
-                    <text key={i} x={x} y={height - padding + 12} fontSize="8" fill="#888" textAnchor="middle">
-                      {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
-                    </text>
-                  );
-                })}
-                {Array.from({ length: max + 1 }).map((_, i) => (
-                  <text key={i} x={padding - 8} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 3} fontSize="8" fill="#888" textAnchor="end">
-                    {i}
-                  </text>
-                ))}
-              </svg>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-
-// small component to capture email/password
-function AuthForm({ mode, onSubmit }) {
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const submit = (e) => {
-    e.preventDefault();
-    onSubmit(email, pass);
-  };
-  return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        style={{ padding: 8, borderRadius: 6, border: "1px solid #2a2a3a", background: "#0e0e16", color: "#e8e8f0" }}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={pass}
-        onChange={(e) => setPass(e.target.value)}
-        required
-        style={{ padding: 8, borderRadius: 6, border: "1px solid #2a2a3a", background: "#0e0e16", color: "#e8e8f0" }}
-      />
-      <button type="submit" style={{ padding: 8, borderRadius: 6, background: "#4ade80", color: "#0a0a10", fontWeight: 600, cursor: "pointer" }}>
-        {mode === "login" ? "Sign in" : "Create account"}
-      </button>
-    </form>
   );
 }
