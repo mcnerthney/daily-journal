@@ -173,6 +173,7 @@ function EntryView({ entry, date }) {
           ))}
         </div>
       </div>
+      {entry.notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.notes}</p>}
       {entry.food_notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.food_notes}</p>}
       {entry.workouts && Object.values(entry.workouts).some(v => v > 0) && (
         <div style={{ marginTop: "8px", color: "#ddd", fontSize: "13px" }}>
@@ -182,8 +183,6 @@ function EntryView({ entry, date }) {
           })}
         </div>
       )}
-
-      {entry.notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.notes}</p>}
     </div>
   );
 }
