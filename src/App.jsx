@@ -7,6 +7,7 @@ import {
   formatDate,
   fetchAllEntries,
   saveEntry,
+  fetchPublicList,
 } from "./utils";
 import {
   MOODS,
@@ -64,10 +65,24 @@ export default function App() {
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
+  const [publicListId, setPublicListId] = useState(null);
+  const [publicList, setPublicList] = useState(null);
 
   // derive feature metadata from the list
   const currentFeature = FEATURES.find(f => f.key === appView);
   const featureTitle = currentFeature ? currentFeature.label : "";
+
+  // --- handle public list routes ------------------------------------------------
+  useEffect(() => {
+    const match = window.location.pathname.match(/^\/lists\/public\/([^\/]+)/);
+    if (match) {
+      const id = match[1];
+      setPublicListId(id);
+      fetchPublicList(id)
+        .then(setPublicList)
+        .catch(() => setPublicList(null));
+    }
+  }, []);
 
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
@@ -254,6 +269,34 @@ export default function App() {
     setToken("");
     setAppView("home");
   };
+
+  // if we're viewing a public list, render it and nothing else
+  if (publicListId) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px" }}>
+        {publicList ? (
+          <div style={{ maxWidth: "500px", margin: "0 auto" }}>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px" }}>{publicList.name}</h1>
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {(publicList.items || []).map((it, idx) => (
+                <li key={idx} style={{ marginBottom: "6px" }}>
+                  <span style={{ color: it.done ? "#888" : "#e8e8f0" }}>{it.text}</span>
+                </li>
+              ))}
+            </ul>
+            <div style={{ marginTop: "20px", fontSize: "12px", color: "#888" }}>
+              {publicList.items && publicList.items.length === 0 && "(empty list)"}
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", marginTop: "80px", color: "#555" }}>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>📋</div>
+            <div>List not found.</div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // authentication is now part of the home screen; the early return is removed
 

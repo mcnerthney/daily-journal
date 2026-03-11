@@ -5,6 +5,7 @@ export default function Lists({ token, socket }) {
     const [lists, setLists] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [newName, setNewName] = useState("");
+    const [newNamePublic, setNewNamePublic] = useState(false);
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
     const [error, setError] = useState("");
@@ -57,9 +58,10 @@ export default function Lists({ token, socket }) {
     const saveNewList = async () => {
         if (!newName.trim()) return;
         try {
-            const doc = await createList({ name: newName.trim() }, authHeaders);
+            const doc = await createList({ name: newName.trim(), public: newNamePublic }, authHeaders);
             setLists((p) => [...p, doc]);
             setNewName("");
+            setNewNamePublic(false);
             selectList(doc._id);
         } catch (e) {
             console.error(e);
@@ -159,6 +161,16 @@ export default function Lists({ token, socket }) {
                     </ul>
                     <div style={{ marginTop: "16px" }}>
                         <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ width: "100%", padding: "6px" }} />
+                        <div style={{ marginTop: "8px", fontSize: "14px" }}>
+                            <label>
+                                <input
+                                    type="checkbox"
+                                    checked={newNamePublic || false}
+                                    onChange={e => setNewNamePublic(e.target.checked)}
+                                />{' '}
+                                Public
+                            </label>
+                        </div>
                         <button onClick={saveNewList} style={{ marginTop: "8px", width: "100%" }}>Create</button>
                     </div>
                 </div>
@@ -174,6 +186,31 @@ export default function Lists({ token, socket }) {
                             {selected.ownerEmail && (
                                 <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
                                     Owner: {selected.ownerEmail}
+                                </div>
+                            )}
+                            {isOwner && (
+                                <div style={{ marginTop: "8px" }}>
+                                    <label style={{ fontSize: "14px" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!selected.public}
+                                            onChange={async () => {
+                                                try {
+                                                    const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
+                                                    setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    setError("Unable to update public flag");
+                                                }
+                                            }}
+                                        />{' '}
+                                        Make public (guest view)
+                                    </label>
+                                    {selected.public && selected.publicId && (
+                                        <div style={{ marginTop: "4px", fontSize: "12px" }}>
+                                            URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             <h4>Items</h4>

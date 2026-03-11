@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import { MongoClient, ObjectId } from "mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const app = express();
 const httpServer = createServer(app);
@@ -100,6 +101,8 @@ async function connectDB() {
   // lists indexed by owner and sharedWith for fast lookup
   await db.collection("lists").createIndex({ owner: 1 });
   await db.collection("lists").createIndex({ sharedWith: 1 });
+  // unique id for public access
+  await db.collection("lists").createIndex({ publicId: 1 }, { unique: true, sparse: true });
 
   console.log(`✅ Connected to MongoDB at ${MONGO_URI}`);
 }
@@ -202,14 +205,18 @@ async function resolveEmails(emails) {
 
 app.post("/api/lists", auth, async (req, res) => {
   try {
-    const { name, items = [], shareWithEmails = [] } = req.body;
+    const { name, items = [], shareWithEmails = [], public: isPublic = false } = req.body;
     if (!name) return res.status(400).json({ error: "Missing name" });
     const owner = req.userId;
     const sharedWith = await resolveEmails(shareWithEmails);
     const doc = { name, owner, items, sharedWith, shareWithEmails };
+    if (isPublic) {
+      // generate a random publicId if none supplied
+      doc.public = true;
+      doc.publicId = crypto.randomUUID();
+    }
     const result = await lists().insertOne(doc);
-    const saved = { ...doc, _id: result.insertedId }; // return full doc
-    // notify owner (could also notify others later when sharing)
+    const saved = { ...doc, _id: result.insertedId };
     io.to(owner).emit("list:updated", saved);
     res.json(saved);
   } catch (err) {
@@ -221,20 +228,22 @@ app.post("/api/lists", auth, async (req, res) => {
 app.put("/api/lists/:id", auth, async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, items, shareWithEmails } = req.body;
+    const { name, items, shareWithEmails, public: isPublic } = req.body;
     const userId = req.userId;
     const filter = { _id: new ObjectId(id) };
     const existing = await lists().findOne(filter);
     if (!existing) return res.status(404).json({ error: "Not found" });
-    // user must be owner or in sharedWith to modify
     const allowed = existing.owner === userId || (existing.sharedWith || []).includes(userId);
     if (!allowed) return res.status(403).json({ error: "Forbidden" });
 
-    // only owner may change name or sharing list
+    // only owner may change name, sharing, or public status
     if (name !== undefined && existing.owner !== userId) {
       return res.status(403).json({ error: "Forbidden" });
     }
     if (shareWithEmails !== undefined && existing.owner !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (isPublic !== undefined && existing.owner !== userId) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -247,9 +256,15 @@ app.put("/api/lists/:id", auth, async (req, res) => {
     if (items !== undefined) update.items = items;
     if (sharedWith !== undefined) update.sharedWith = sharedWith;
     if (shareWithEmails !== undefined) update.shareWithEmails = shareWithEmails;
+    if (isPublic !== undefined) {
+      update.public = isPublic;
+      if (isPublic && !existing.publicId) update.publicId = crypto.randomUUID();
+      if (!isPublic) {
+        update.publicId = null;
+      }
+    }
     await lists().updateOne(filter, { $set: update });
     const newDoc = await lists().findOne(filter);
-    // notify owner + shared users
     const recipients = [newDoc.owner, ...(newDoc.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:updated", newDoc));
     res.json(newDoc);
@@ -268,13 +283,25 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     if (!existing) return res.json({ ok: true });
     if (existing.owner !== userId) return res.status(403).json({ error: "Forbidden" });
     await lists().deleteOne(filter);
-    // broadcast deletion to everyone who had access
     const recipients = [existing.owner, ...(existing.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to delete list" });
+  }
+});
+
+// public read-only access, no auth required
+app.get("/api/public/:publicId", async (req, res) => {
+  try {
+    const doc = await lists().findOne({ publicId: req.params.publicId, public: true });
+    if (!doc) return res.status(404).json({ error: "Not found" });
+    const { _id, owner, sharedWith, shareWithEmails, ...data } = doc;
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load public list" });
   }
 });
 

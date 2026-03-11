@@ -41,12 +41,13 @@ The journal now supports per-user auth; all `/api/entries` routes require a **Be
 | DELETE | /api/entries/:date    | Delete a day             |
 
 # Lists API
-| Method | Path              | Description                            |
-|--------|-------------------|----------------------------------------|
-| GET    | /api/lists        | Fetch all lists owned or shared        |
-| POST   | /api/lists        | Create a new checklist (name, items, optional sharing) |
-| PUT    | /api/lists/:id    | Update a list's name/items/sharing    |
-| DELETE | /api/lists/:id    | Remove a list (owner only)             |
+| Method | Path                   | Description                            |
+|--------|------------------------|----------------------------------------|
+| GET    | /api/lists             | Fetch all lists owned or shared        |
+| POST   | /api/lists             | Create a new checklist (name, items, optional sharing, public flag) |
+| PUT    | /api/lists/:id         | Update a list's name/items/sharing/public flag |
+| DELETE | /api/lists/:id         | Remove a list (owner only)             |
+| GET    | /api/public/:publicId  | Read-only access to a public list (no auth) |
 
 Dates use `YYYY-MM-DD` format.
 
@@ -68,7 +69,7 @@ npm install && npm run dev
 ## Features
 
 - **Daily Journal** — track mood, medications, workouts, blood pressure, and more.
-- **Lists** — create, share, and collaborate on multiple checklists across users. Items sync live with collaborators; owners can invite others by email, who will receive access automatically.
+- **Lists** — create, share, and collaborate on multiple checklists across users. Items sync live with collaborators; owners can invite others by email, who will receive access automatically. Lists may be marked **public**; anyone with the URL can view the checklist without signing in.
 
 
 | Section    | What it tracks                                          |
@@ -91,6 +92,7 @@ Users can create any number of checklists (e.g. groceries, packing, goals) via t
 - A name and arbitrary items.
 - Real‑time updates: when one user adds/removes items, all collaborators see the change instantly.
 - Optional sharing: owners can invite others by supplying their email addresses; those users receive read/write access and will see the list in their sidebar.
+- **Public flag**: owners may toggle a list public. Public lists get a unique random URL (`/lists/public/<id>`) and are readable by anyone (no authentication required); only the owner can make a list public or private.
 - Ownership rules: only the creator may rename or delete a list; collaborators can modify items but not sharing settings.
 
-New shared lists appear automatically for invitees upon login.
+New shared lists appear automatically for invitees upon login; public lists can be bookmarked or shared widely without requiring login.
