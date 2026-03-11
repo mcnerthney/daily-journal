@@ -604,38 +604,69 @@ export default function App() {
 
 // small component to capture email/password
 
-// simple line chart showing workout counts over time
+// simple line chart showing workout counts over time (one line per workout type)
 function WorkoutChart({ entries }) {
-  const data = Object.keys(entries).sort().map(date => {
-    const w = entries[date].workouts;
-    const count = w ? Object.values(w).filter(v => v > 0).length : 0;
-    return { date, count };
+  const dates = Object.keys(entries).sort();
+  if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No workout data</div>;
+
+  // compute series for each workout key
+  const series = {};
+  WORKOUTS.forEach(w => { series[w.key] = []; });
+  dates.forEach(date => {
+    const w = entries[date].workouts || {};
+    WORKOUTS.forEach(wt => {
+      const val = parseInt(w[wt.key]) || 0;
+      series[wt.key].push({ date, val });
+    });
   });
-  if (data.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No workout data</div>;
-  const max = Math.max(...data.map(d => d.count));
-  const width = 600, height = 240, padding = 40;
-  const points = data.map((d, i) => {
-    const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
-    const y = height - padding - (max ? (d.count / max) * (height - 2 * padding) : 0);
-    return [x, y];
+
+  const max = Math.max(...Object.values(series).flatMap(arr => arr.map(d => d.val)));
+  const width = 700, height = 260, padding = 40;
+  const colors = ["#4ade80", "#fb923c", "#fcd34d", "#38bdf8", "#a78bfa"];
+
+  const buildPoints = (arr) =>
+    arr.map((d, i) => {
+      const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
+      const y = height - padding - (max ? (d.val / max) * (height - 2 * padding) : 0);
+      return [x, y];
+    });
+
+  const lines = Object.entries(series).map(([key, arr], idx) => {
+    const pts = buildPoints(arr);
+    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
+    return { key, path, color: colors[idx % colors.length] };
   });
-  const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
+
   return (
     <div style={{ overflowX: 'auto' }}>
       <svg width={width} height={height} style={{ display: 'block' }}>
         <rect width="100%" height="100%" fill="#12121a" />
-        <path d={path} fill="none" stroke="#4ade80" strokeWidth="2" />
-        {points.map((p, i) => (
-          <text key={i} x={p[0]} y={height - padding + 15} fontSize="10" fill="#888" textAnchor="middle">
-            {new Date(data[i].date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
-          </text>
+        {lines.map(l => (
+          <path key={l.key} d={l.path} fill="none" stroke={l.color} strokeWidth="2" />
         ))}
+
+        {dates.map((date, i) => {
+          const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
+          return (
+            <text key={i} x={x} y={height - padding + 15} fontSize="10" fill="#888" textAnchor="middle">
+              {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+            </text>
+          );
+        })}
+
         {Array.from({ length: max + 1 }).map((_, i) => (
           <text key={i} x={padding - 10} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 4} fontSize="10" fill="#888" textAnchor="end">
             {i}
           </text>
         ))}
       </svg>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '8px' }}>
+        {WORKOUTS.map((w, i) => (
+          <div key={w.key} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: colors[i % colors.length] }}>
+            <span>{w.emoji}</span><span>{w.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
