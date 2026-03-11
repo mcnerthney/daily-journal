@@ -355,7 +355,7 @@ export default function App() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       persistEntry(today, merged);
-    }, 300);
+    }, 700);
   }, [today, todayEntry, persistEntry]);
 
   const updateNotes = useCallback((text) => {
