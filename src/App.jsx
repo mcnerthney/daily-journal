@@ -468,6 +468,33 @@ export default function App() {
               </div>
             </Section>
 
+
+            <Section title="Blood Pressure" icon="🩺" accent="#f472b6">
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Systolic</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={todayEntry.systolic || ""}
+                    onChange={e => updateEntry({ systolic: parseInt(e.target.value) || null })}
+                    style={{ ...inputStyle, width: "80px", textAlign: "center" }}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Diastolic</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={todayEntry.diastolic || ""}
+                    onChange={e => updateEntry({ diastolic: parseInt(e.target.value) || null })}
+                    style={{ ...inputStyle, width: "80px", textAlign: "center" }}
+                  />
+                </div>
+              </div>
+            </Section>
+
+
             <Section title="Nutrition" icon="🥗" accent="#4ade80">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
                 {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(todayEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="#4ade80" />)}
@@ -507,31 +534,6 @@ export default function App() {
                     <span style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>{w.label}</span>
                   </div>
                 ))}
-              </div>
-            </Section>
-
-            <Section title="Blood Pressure" icon="🩺" accent="#f472b6">
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Systolic</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={todayEntry.systolic || ""}
-                    onChange={e => updateEntry({ systolic: parseInt(e.target.value) || null })}
-                    style={{ ...inputStyle, width: "80px", textAlign: "center" }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Diastolic</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={todayEntry.diastolic || ""}
-                    onChange={e => updateEntry({ diastolic: parseInt(e.target.value) || null })}
-                    style={{ ...inputStyle, width: "80px", textAlign: "center" }}
-                  />
-                </div>
               </div>
             </Section>
 
