@@ -59,6 +59,10 @@ npm install && npm run dev
 
 ## Features
 
+- **Daily Journal** — track mood, medications, workouts, blood pressure, and more.
+- **Lists** — create and share multiple checklists with other users; real-time collaboration supported.
+
+
 | Section    | What it tracks                                          |
 |------------|---------------------------------------------------------|
 | 💭 Mood    | 5-level emoji scale                                     |

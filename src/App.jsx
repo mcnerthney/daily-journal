@@ -28,10 +28,12 @@ import SaveIndicator from "./components/SaveIndicator";
 import AuthForm from "./components/AuthForm";
 import WorkoutChart from "./components/WorkoutChart";
 import BpChart from "./components/BpChart";
+import Lists from "./components/Lists";
 
 // list of top‑level features that can appear on the home screen
 const FEATURES = [
   { key: "journal", label: "Daily Journal", emoji: "📝" },
+  { key: "lists", label: "Lists", emoji: "📋" },
   // additional features can be added here later
 ];
 
@@ -113,6 +115,7 @@ export default function App() {
   const [viewers, setViewers] = useState(1);
   const [toast, setToast] = useState({ message: "", visible: false });
   const today = getTodayKey();
+  const socketRef = useRef(null);
 
   // headers helper including auth token
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -130,10 +133,12 @@ export default function App() {
 
   // ── Socket.io connection ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!token) return; const socket = io({
+    if (!token) return;
+    const socket = io({
       transports: ["websocket", "polling"],
       auth: { token },
     });
+    socketRef.current = socket;
 
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
@@ -245,7 +250,10 @@ export default function App() {
   const textareaStyle = { ...inputStyle, width: "100%", resize: "vertical", lineHeight: 1.6 };
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const logout = () => setToken("");
+  const logout = () => {
+    setToken("");
+    setAppView("home");
+  };
 
   // authentication is now part of the home screen; the early return is removed
 
@@ -315,7 +323,7 @@ export default function App() {
     );
   }
 
-  if (appView !== "journal") {
+  if (appView !== "journal" && appView !== "lists") {
     return (
       <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px", textAlign: "center" }}>
         <h2 style={{ color: "#c9b8ff" }}>Feature "{appView}" not available yet</h2>
@@ -341,7 +349,7 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                {appView === "journal" && (
+                {appView !== "home" && (
                   <button
                     onClick={() => { setAppView("home"); setView("today"); }}
                     style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px" }}
@@ -359,13 +367,15 @@ export default function App() {
                 {formatDate(today)}
               </div>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
-              {["today", "history", "chart"].map(v => (
-                <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid #6d5acd" : "1px solid #2a2a3a", background: view === v ? "#6d5acd22" : "transparent", color: view === v ? "#c9b8ff" : "#666", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
-                  {v === "chart" ? "Stats" : v}
-                </button>
-              ))}
-            </div>
+            {appView === "journal" && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                {["today", "history", "chart"].map(v => (
+                  <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid #6d5acd" : "1px solid #2a2a3a", background: view === v ? "#6d5acd22" : "transparent", color: view === v ? "#c9b8ff" : "#666", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
+                    {v === "chart" ? "Stats" : v}
+                  </button>
+                ))}
+              </div>
+            )}
             <button onClick={logout} style={{ marginLeft: "12px", padding: "7px 16px", borderRadius: "10px", border: "1px solid #ef4444", background: "#ef444422", color: "#ef4444", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>
               Log out
             </button>
@@ -384,7 +394,9 @@ export default function App() {
 
       {/* Body */}
       <div style={{ maxWidth: "680px", margin: "0 auto", padding: "20px 16px 80px" }}>
-        {loading ? (
+        {appView === "lists" ? (
+          <Lists token={token} socket={socketRef.current} />
+        ) : loading ? (
           <div style={{ textAlign: "center", padding: "80px 0", color: "#555" }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>📓</div>
             <div>Loading your journal…</div>
@@ -393,6 +405,7 @@ export default function App() {
           <>
             <Section title="How are you feeling?" icon="💭" accent="#c9b8ff">
               <MoodSelector value={todayEntry.mood || null} onChange={v => updateEntry({ mood: v })} />
+
             </Section>
 
             <Section title="Medication" icon="💊" accent="#fb923c">

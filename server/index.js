@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -97,11 +97,19 @@ async function connectDB() {
   // ensure indexes for performance / uniqueness
   await db.collection("users").createIndex({ email: 1 }, { unique: true });
   await db.collection("entries").createIndex({ userId: 1, date: 1 }, { unique: true });
+  // lists indexed by owner and sharedWith for fast lookup
+  await db.collection("lists").createIndex({ owner: 1 });
+  await db.collection("lists").createIndex({ sharedWith: 1 });
+
   console.log(`✅ Connected to MongoDB at ${MONGO_URI}`);
 }
 
 function entries() {
   return db.collection("entries");
+}
+
+function lists() {
+  return db.collection("lists");
 }
 
 // ── Health check ─────────────────────────────────────────────────────────────
@@ -153,6 +161,120 @@ app.get("/api/entries", auth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load entries" });
+  }
+});
+
+// ── Lists --------------------------------------------------------------
+
+// fetch all lists the user owns or has been shared with
+app.get("/api/lists", auth, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const docs = await lists()
+      .find({ $or: [{ owner: userId }, { sharedWith: userId }] })
+      .toArray();
+
+    // enrich with owner email for UI display
+    const ownerIds = [...new Set(docs.map(d => d.owner))];
+    let ownerMap = {};
+    if (ownerIds.length) {
+      const users = await db.collection("users").find({ _id: { $in: ownerIds.map(id => new ObjectId(id)) } }).toArray();
+      ownerMap = users.reduce((m, u) => ({ ...m, [u._id.toString()]: u.email }), {});
+    }
+    const enriched = docs.map(d => ({ ...d, ownerEmail: ownerMap[d.owner] || "" }));
+
+    res.json(enriched);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load lists" });
+  }
+});
+
+// helper to translate emails into userIds; returns array of existing ids
+async function resolveEmails(emails) {
+  if (!emails || emails.length === 0) return [];
+  const users = await db
+    .collection("users")
+    .find({ email: { $in: emails } })
+    .toArray();
+  return users.map(u => u._id.toString());
+}
+
+app.post("/api/lists", auth, async (req, res) => {
+  try {
+    const { name, items = [], shareWithEmails = [] } = req.body;
+    if (!name) return res.status(400).json({ error: "Missing name" });
+    const owner = req.userId;
+    const sharedWith = await resolveEmails(shareWithEmails);
+    const doc = { name, owner, items, sharedWith, shareWithEmails };
+    const result = await lists().insertOne(doc);
+    const saved = { ...doc, _id: result.insertedId }; // return full doc
+    // notify owner (could also notify others later when sharing)
+    io.to(owner).emit("list:updated", saved);
+    res.json(saved);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to create list" });
+  }
+});
+
+app.put("/api/lists/:id", auth, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { name, items, shareWithEmails } = req.body;
+    const userId = req.userId;
+    const filter = { _id: new ObjectId(id) };
+    const existing = await lists().findOne(filter);
+    if (!existing) return res.status(404).json({ error: "Not found" });
+    // user must be owner or in sharedWith to modify
+    const allowed = existing.owner === userId || (existing.sharedWith || []).includes(userId);
+    if (!allowed) return res.status(403).json({ error: "Forbidden" });
+
+    // only owner may change name or sharing list
+    if (name !== undefined && existing.owner !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (shareWithEmails !== undefined && existing.owner !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    let sharedWith;
+    if (shareWithEmails) {
+      sharedWith = await resolveEmails(shareWithEmails);
+    }
+    const update = {};
+    if (name !== undefined) update.name = name;
+    if (items !== undefined) update.items = items;
+    if (sharedWith !== undefined) update.sharedWith = sharedWith;
+    if (shareWithEmails !== undefined) update.shareWithEmails = shareWithEmails;
+    await lists().updateOne(filter, { $set: update });
+    const newDoc = await lists().findOne(filter);
+    // notify owner + shared users
+    const recipients = [newDoc.owner, ...(newDoc.sharedWith || [])];
+    recipients.forEach(u => io.to(u).emit("list:updated", newDoc));
+    res.json(newDoc);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update list" });
+  }
+});
+
+app.delete("/api/lists/:id", auth, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const userId = req.userId;
+    const filter = { _id: new ObjectId(id) };
+    const existing = await lists().findOne(filter);
+    if (!existing) return res.json({ ok: true });
+    if (existing.owner !== userId) return res.status(403).json({ error: "Forbidden" });
+    await lists().deleteOne(filter);
+    // broadcast deletion to everyone who had access
+    const recipients = [existing.owner, ...(existing.sharedWith || [])];
+    recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete list" });
   }
 });
 

@@ -32,3 +32,55 @@ export async function saveEntry(date, data, headers = {}) {
         throw err;
     }
 }
+
+// ----- lists helpers ------------------------------------------------------
+export async function fetchLists(headers = {}) {
+    const res = await fetch(`${API}/lists`, { headers });
+    if (!res.ok) {
+        const err = new Error("fetch failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json(); // array of list docs
+}
+
+export async function createList(data, headers = {}) {
+    const res = await fetch(`${API}/lists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const err = new Error("create failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
+export async function updateList(id, data, headers = {}) {
+    const res = await fetch(`${API}/lists/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const err = new Error("update failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
+export async function deleteList(id, headers = {}) {
+    const res = await fetch(`${API}/lists/${id}`, {
+        method: "DELETE",
+        headers,
+    });
+    if (!res.ok) {
+        const err = new Error("delete failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
