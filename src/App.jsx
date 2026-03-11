@@ -29,6 +29,12 @@ import AuthForm from "./components/AuthForm";
 import WorkoutChart from "./components/WorkoutChart";
 import BpChart from "./components/BpChart";
 
+// list of top‑level features that can appear on the home screen
+const FEATURES = [
+  { key: "journal", label: "Daily Journal", emoji: "📝" },
+  // additional features can be added here later
+];
+
 // auth helper methods
 async function doLogin(email, password) {
   const res = await fetch(`${API}/login`, {
@@ -54,6 +60,40 @@ async function doRegister(email, password) {
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [view, setView] = useState("today");
+  // top‑level view: home menu vs. journal feature
+  const [appView, setAppView] = useState("home");
+
+  // derive feature metadata from the list
+  const currentFeature = FEATURES.find(f => f.key === appView);
+  const featureTitle = currentFeature ? currentFeature.label : "";
+
+  // --- sync appView with URL hash ------------------------------------------------
+  // when component mounts or hash changes, update state if it matches a feature
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      if (!hash) return setAppView("home");
+      if (FEATURES.some(f => f.key === hash)) {
+        setAppView(hash);
+        if (hash === "journal") setView("today");
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    handleHashChange(); // initialise
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  // reflect state in the hash when appView changes
+  useEffect(() => {
+    if (appView === "home") {
+      // remove hash while preserving path
+      history.replaceState(null, "", window.location.pathname);
+    } else {
+      if (window.location.hash !== appView) {
+        window.location.hash = appView;
+      }
+    }
+  }, [appView]);
 
   // keep localStorage in sync
   useEffect(() => {
@@ -207,42 +247,81 @@ export default function App() {
   // ── Render ──────────────────────────────────────────────────────────────────
   const logout = () => setToken("");
 
-  if (!token) {
-    // simple auth screen
+  // authentication is now part of the home screen; the early return is removed
+
+  if (appView === "home") {
+    // home/feature picker, with auth embedded
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ width: 300, background: "#12121a", padding: 24, borderRadius: 12 }}>
-          <h2 style={{ marginBottom: 16, color: "#c9b8ff", textAlign: "center" }}>{authMode === "login" ? "Sign In" : "Register"}</h2>
-          <AuthForm
-            mode={authMode}
-            onSubmit={async (email, pass) => {
-              setAuthError("");
-              try {
-                if (authMode === "login") {
-                  const { token } = await doLogin(email, pass);
-                  setToken(token);
-                } else {
-                  await doRegister(email, pass);
-                  setAuthMode("login");
+      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px 16px" }}>
+        <h2 style={{ textAlign: "center", fontFamily: "'Playfair Display', serif", color: "#c9b8ff" }}>Welcome</h2>
+
+        {!token ? (
+          <div style={{ maxWidth: 300, margin: "24px auto", background: "#12121a", padding: 24, borderRadius: 12 }}>
+            <h2 style={{ marginBottom: 16, color: "#c9b8ff", textAlign: "center" }}>{authMode === "login" ? "Sign In" : "Register"}</h2>
+            <AuthForm
+              mode={authMode}
+              onSubmit={async (email, pass) => {
+                setAuthError("");
+                try {
+                  if (authMode === "login") {
+                    const { token } = await doLogin(email, pass);
+                    setToken(token);
+                  } else {
+                    await doRegister(email, pass);
+                    setAuthMode("login");
+                  }
+                } catch (e) {
+                  setAuthError(e.message);
                 }
-              } catch (e) {
-                setAuthError(e.message);
-              }
-            }}
-          />
-          <div style={{ marginTop: 12, textAlign: "center" }}>
-            {authMode === "login" ? (
-              <button onClick={() => setAuthMode("register")} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
-                Need an account?
-              </button>
-            ) : (
-              <button onClick={() => setAuthMode("login")} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
-                Have an account?
-              </button>
-            )}
+              }}
+            />
+            <div style={{ marginTop: 12, textAlign: "center" }}>
+              {authMode === "login" ? (
+                <button onClick={() => setAuthMode("register")} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                  Need an account?
+                </button>
+              ) : (
+                <button onClick={() => setAuthMode("login")} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                  Have an account?
+                </button>
+              )}
+            </div>
+            {authError && <div style={{ color: "#ef4444", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authError}</div>}
           </div>
-          {authError && <div style={{ color: "#ef4444", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authError}</div>}
-        </div>
+        ) : (
+          <>
+            <div style={{ maxWidth: "680px", margin: "24px auto", display: "grid", gap: "16px" }}>
+              {FEATURES.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => {
+                    setAppView(f.key);
+                    if (f.key === "journal") setView("today");
+                  }}
+                  style={{ padding: "16px", borderRadius: "12px", background: "#6d5acd22", border: "1px solid #6d5acd", color: "#c9b8ff", fontSize: "16px", cursor: "pointer" }}
+                >
+                  {f.emoji} {f.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ textAlign: "center", marginTop: "40px" }}>
+              <button onClick={logout} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+                Log out
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (appView !== "journal") {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px", textAlign: "center" }}>
+        <h2 style={{ color: "#c9b8ff" }}>Feature "{appView}" not available yet</h2>
+        <button onClick={() => setAppView("home")} style={{ marginTop: "24px", padding: "8px 16px", borderRadius: "8px", border: "1px solid #6d5acd", background: "#6d5acd22", color: "#c9b8ff", cursor: "pointer" }}>
+          ← Back to home
+        </button>
       </div>
     );
   }
@@ -262,8 +341,16 @@ export default function App() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                {appView === "journal" && (
+                  <button
+                    onClick={() => { setAppView("home"); setView("today"); }}
+                    style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px" }}
+                  >
+                    ← Home
+                  </button>
+                )}
                 <h1 style={{ margin: 0, fontSize: "22px", fontFamily: "'Playfair Display', serif", fontWeight: 700, background: "linear-gradient(135deg,#c9b8ff,#f0acd4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  Daily Journal
+                  {featureTitle || "Daily Journal"}
                 </h1>
                 <LivePill connected={connected} viewers={viewers} />
                 <SaveIndicator status={saveStatus} />
