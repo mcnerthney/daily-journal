@@ -462,9 +462,9 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
-              {["today", "history"].map(v => (
+              {["today", "history", "chart"].map(v => (
                 <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid #6d5acd" : "1px solid #2a2a3a", background: view === v ? "#6d5acd22" : "transparent", color: view === v ? "#c9b8ff" : "#666", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
-                  {v}
+                  {v === "chart" ? "Stats" : v}
                 </button>
               ))}
             </div>
@@ -577,6 +577,11 @@ export default function App() {
               ))}
             </div>
           </>
+        ) : view === "chart" ? (
+          <>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "#c9b8ff", marginBottom: "20px" }}>Workout Trends</h2>
+            <WorkoutChart entries={entries} />
+          </>
         ) : (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -598,6 +603,43 @@ export default function App() {
 }
 
 // small component to capture email/password
+
+// simple line chart showing workout counts over time
+function WorkoutChart({ entries }) {
+  const data = Object.keys(entries).sort().map(date => {
+    const w = entries[date].workouts;
+    const count = w ? Object.values(w).filter(v => v > 0).length : 0;
+    return { date, count };
+  });
+  if (data.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No workout data</div>;
+  const max = Math.max(...data.map(d => d.count));
+  const width = 600, height = 240, padding = 40;
+  const points = data.map((d, i) => {
+    const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
+    const y = height - padding - (max ? (d.count / max) * (height - 2 * padding) : 0);
+    return [x, y];
+  });
+  const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg width={width} height={height} style={{ display: 'block' }}>
+        <rect width="100%" height="100%" fill="#12121a" />
+        <path d={path} fill="none" stroke="#4ade80" strokeWidth="2" />
+        {points.map((p, i) => (
+          <text key={i} x={p[0]} y={height - padding + 15} fontSize="10" fill="#888" textAnchor="middle">
+            {new Date(data[i].date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+          </text>
+        ))}
+        {Array.from({ length: max + 1 }).map((_, i) => (
+          <text key={i} x={padding - 10} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 4} fontSize="10" fill="#888" textAnchor="end">
+            {i}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 function AuthForm({ mode, onSubmit }) {
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
