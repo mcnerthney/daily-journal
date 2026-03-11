@@ -505,7 +505,7 @@ export default function App() {
                 ))}
               </div>
               <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
-                <input value={customMedInput} onChange={e => setCustomMedInput(e.target.value)} placeholder="+ add custom medication…" style={{ ...inputStyle, flex: 1 }}
+                <input spellCheck={true} value={customMedInput} onChange={e => setCustomMedInput(e.target.value)} placeholder="+ add custom medication…" style={{ ...inputStyle, flex: 1 }}
                   onKeyDown={e => { if (e.key === "Enter" && customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(todayEntry.customMeds || []), l], medications: [...(todayEntry.medications || []), l] }); setCustomMedInput(""); } }}
                 />
                 <button onClick={() => { if (customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(todayEntry.customMeds || []), l], medications: [...(todayEntry.medications || []), l] }); setCustomMedInput(""); } }}
@@ -519,7 +519,7 @@ export default function App() {
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
                 {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(todayEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="#4ade80" />)}
               </div>
-              <textarea placeholder="What did you eat today?" value={todayEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
+              <textarea spellCheck={true} placeholder="What did you eat today?" value={todayEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
             </Section>
 
             <Section title="Personal Hygiene" icon="🚿" accent="#38bdf8">
@@ -558,7 +558,7 @@ export default function App() {
             </Section>
 
             <Section title="Journal Notes" icon="📝" accent="#a78bfa">
-              <textarea placeholder="How was your day? Anything on your mind…" value={todayEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
+              <textarea spellCheck={true} placeholder="How was your day? Anything on your mind…" value={todayEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
             </Section>
 
             <div style={{ background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "16px", padding: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
