@@ -88,25 +88,6 @@ export default function App() {
     }
   }, []);
 
-  // --- listen for updates to public list via websocket --------------------------
-  useEffect(() => {
-    if (!publicListId || !socketRef.current) return;
-    const socket = socketRef.current;
-
-    const handleUpdate = ({ list }) => {
-      if (list && list._id === publicListId) {
-        setPublicList(list);
-        showToast("Public list updated");
-      }
-    };
-
-    socket.on("public-list:updated", handleUpdate);
-
-    return () => {
-      socket.off("public-list:updated", handleUpdate);
-    };
-  }, [publicListId]);
-
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
 
@@ -229,6 +210,15 @@ export default function App() {
       });
       if (date !== today) showToast(`🗑 Entry for ${formatDate(date)} was deleted`);
     });
+
+    if (publicListId) {
+      socket.on("public-list:updated", ({ list }) => {
+        if (list && list._id === publicListId) {
+          setPublicList(list);
+          showToast("Public list updated");
+        }
+      });
+    }
 
     return () => socket.disconnect();
   }, [today, showToast, token, publicListId]);
