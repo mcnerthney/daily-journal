@@ -188,6 +188,12 @@ export default function App() {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
 
+    if (publicListId) {
+      const subscribe = () => socket.emit("public-list:subscribe", { publicId: publicListId });
+      socket.on("connect", subscribe);
+      if (socket.connected) subscribe();
+    }
+
     socket.on("presence", ({ count }) => setViewers(count));
 
     socket.on("entry:updated", ({ date, entry }) => {
@@ -213,9 +219,14 @@ export default function App() {
 
     if (publicListId) {
       socket.on("public-list:updated", ({ list }) => {
-        if (list && list._id === publicListId) {
-          setPublicList(list);
-          showToast("Public list updated");
+        if (list && list.publicId === publicListId) {
+          if (list.deleted) {
+            setPublicList(null);
+            showToast("Public list was deleted");
+          } else {
+            setPublicList(list);
+            showToast("Public list updated");
+          }
         }
       });
     }

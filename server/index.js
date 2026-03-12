@@ -45,16 +45,16 @@ const io = new Server(httpServer, {
 let connectedClients = 0;
 const userClients = {}; // { userId: count }
 
-// require a valid token before allowing socket connection
+// allow unauthenticated sockets for public list viewers; auth sockets still join user rooms
 io.use((socket, next) => {
   const token = socket.handshake.auth.token || socket.handshake.query.token;
-  if (!token) return next(new Error("unauthorized"));
+  if (!token) return next();
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     socket.userId = payload.userId;
     return next();
   } catch (err) {
-    return next(new Error("unauthorized"));
+    return next();
   }
 });
 
@@ -73,6 +73,12 @@ io.on("connection", (socket) => {
   if (socket.userId) {
     io.to(socket.userId).emit("presence", { count: userClients[socket.userId] });
   }
+
+  // public list guests subscribe to a room keyed by publicId
+  socket.on("public-list:subscribe", ({ publicId }) => {
+    if (!publicId) return;
+    socket.join(`public-list:${publicId}`);
+  });
 
   socket.on("disconnect", () => {
     connectedClients--;
@@ -218,6 +224,15 @@ app.post("/api/lists", auth, async (req, res) => {
     const result = await lists().insertOne(doc);
     const saved = { ...doc, _id: result.insertedId };
     io.to(owner).emit("list:updated", saved);
+    if (saved.public && saved.publicId) {
+      io.to(`public-list:${saved.publicId}`).emit("public-list:updated", {
+        list: {
+          publicId: saved.publicId,
+          name: saved.name,
+          items: saved.items || [],
+        },
+      });
+    }
     res.json(saved);
   } catch (err) {
     console.error(err);
@@ -263,10 +278,35 @@ app.put("/api/lists/:id", auth, async (req, res) => {
         update.publicId = null;
       }
     }
+    const previousPublicId = existing.publicId;
+    const previousWasPublic = !!existing.public;
+
     await lists().updateOne(filter, { $set: update });
     const newDoc = await lists().findOne(filter);
     const recipients = [newDoc.owner, ...(newDoc.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:updated", newDoc));
+
+    if (newDoc.public && newDoc.publicId) {
+      io.to(`public-list:${newDoc.publicId}`).emit("public-list:updated", {
+        list: {
+          publicId: newDoc.publicId,
+          name: newDoc.name,
+          items: newDoc.items || [],
+        },
+      });
+    }
+
+    // if publicId changed, notify old subscribers too
+    if (previousWasPublic && previousPublicId && previousPublicId !== newDoc.publicId) {
+      io.to(`public-list:${previousPublicId}`).emit("public-list:updated", {
+        list: {
+          publicId: previousPublicId,
+          name: newDoc.name,
+          items: newDoc.items || [],
+        },
+      });
+    }
+
     res.json(newDoc);
   } catch (err) {
     console.error(err);
@@ -285,6 +325,16 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     await lists().deleteOne(filter);
     const recipients = [existing.owner, ...(existing.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
+    if (existing.public && existing.publicId) {
+      io.to(`public-list:${existing.publicId}`).emit("public-list:updated", {
+        list: {
+          publicId: existing.publicId,
+          name: existing.name,
+          items: [],
+          deleted: true,
+        },
+      });
+    }
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
