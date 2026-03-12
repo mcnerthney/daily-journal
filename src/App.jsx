@@ -90,6 +90,28 @@ export default function App() {
 
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
+
+  const routes = {
+    home: () => setAppView("home"),
+    journal: () => {
+      setAppView("journal");
+      setView("today");
+    },
+    stats: () => setAppView("stats")
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = location.hash.replace("#", "") || "home";
+      routes[hash]?.();
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    handleHashChange();
+
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
   useEffect(() => {
     const handleHashChange = () => {
       const hash = location.hash.replace("#", "") || "home";
