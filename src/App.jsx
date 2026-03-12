@@ -92,15 +92,16 @@ export default function App() {
   // when component mounts or hash changes, update state if it matches a feature
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.slice(1);
-      if (!hash) return setAppView("home");
-      if (FEATURES.some(f => f.key === hash)) {
-        setAppView(hash);
-        if (hash === "journal") setView("today");
-      }
+      const hash = location.hash.replace("#", "") || "home";
+      if (!FEATURES.some(f => f.key === hash)) return;
+
+      setAppView(hash);
+      if (hash === "journal") setView("today");
     };
+
     window.addEventListener("hashchange", handleHashChange);
-    handleHashChange(); // initialise
+    handleHashChange();
+
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
