@@ -60,6 +60,9 @@ export default function Lists({ token, socket }) {
         try {
             const doc = await createList({ name: newName.trim(), public: newNamePublic }, authHeaders);
             setLists((p) => [...p, doc]);
+            if (doc.public && doc.publicId && socket) {
+                socket.emit("public-list:updated", { list: doc });
+            }
             setNewName("");
             setNewNamePublic(false);
             selectList(doc._id);
@@ -76,6 +79,9 @@ export default function Lists({ token, socket }) {
         try {
             const updated = await updateList(selectedId, { items }, authHeaders);
             setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            if (updated.public && updated.publicId && socket) {
+                socket.emit("public-list:updated", { list: updated });
+            }
             setNewItem("");
         } catch (e) {
             console.error(e);
@@ -89,6 +95,9 @@ export default function Lists({ token, socket }) {
         try {
             const updated = await updateList(selectedId, { items }, authHeaders);
             setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            if (updated.public && updated.publicId && socket) {
+                socket.emit("public-list:updated", { list: updated });
+            }
         } catch (e) {
             console.error(e);
             setError("Unable to toggle item");
@@ -101,6 +110,9 @@ export default function Lists({ token, socket }) {
         try {
             const updated = await updateList(selectedId, { name }, authHeaders);
             setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            if (updated.public && updated.publicId && socket) {
+                socket.emit("public-list:updated", { list: updated });
+            }
         } catch (e) {
             console.error(e);
             setError("Unable to rename");
@@ -112,6 +124,9 @@ export default function Lists({ token, socket }) {
         try {
             const updated = await updateList(selectedId, { shareWithEmails: emails }, authHeaders);
             setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            if (updated.public && updated.publicId && socket) {
+                socket.emit("public-list:updated", { list: updated });
+            }
         } catch (e) {
             console.error(e);
             setError("Unable to update sharing");
@@ -198,6 +213,9 @@ export default function Lists({ token, socket }) {
                                                 try {
                                                     const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
                                                     setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+                                                    if (updated.public && updated.publicId && socket) {
+                                                        socket.emit("public-list:updated", { list: updated });
+                                                    }
                                                 } catch (e) {
                                                     console.error(e);
                                                     setError("Unable to update public flag");
