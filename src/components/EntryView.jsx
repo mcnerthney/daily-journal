@@ -27,18 +27,18 @@ export default function EntryView({ entry, date, onEdit }) {
                         <span key={i} style={{ padding: "3px 10px", borderRadius: "10px", background: b.active ? "#6d5acd22" : "#1a1a26", color: b.active ? "#c9b8ff" : "#444", fontSize: "12px" }}>{b.label}</span>
                     ))}
                     {onEdit && (
-                      <button
-                        onClick={() => onEdit(date)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#4ade80",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
-                      >
-                        ✏️
-                      </button>
+                        <button
+                            onClick={() => onEdit(date)}
+                            style={{
+                                background: "none",
+                                border: "none",
+                                color: "#4ade80",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                            }}
+                        >
+                            ✏️
+                        </button>
                     )}
                 </div>
             </div>

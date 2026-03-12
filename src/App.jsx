@@ -597,21 +597,21 @@ export default function App() {
             {sortedDates.length === 0
               ? <div style={{ textAlign: "center", padding: "60px 20px", color: "#555", fontStyle: "italic" }}>No entries yet. Start tracking today!</div>
               : sortedDates.map(date => (
-                  <div
-                    key={date}
-                    style={{
-                      position: "relative",
-                      border: date === activeDate ? "2px solid #4ade80" : undefined,
-                      borderRadius: "14px",
-                    }}
-                  >
-                    <EntryView
-                      date={date}
-                      entry={entries[date]}
-                      onEdit={(d) => { setActiveDate(d); setView("today"); }}
-                    />
-                  </div>
-                ))
+                <div
+                  key={date}
+                  style={{
+                    position: "relative",
+                    border: date === activeDate ? "2px solid #4ade80" : undefined,
+                    borderRadius: "14px",
+                  }}
+                >
+                  <EntryView
+                    date={date}
+                    entry={entries[date]}
+                    onEdit={(d) => { setActiveDate(d); setView("today"); }}
+                  />
+                </div>
+              ))
             }
           </>
         )}
