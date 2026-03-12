@@ -19,7 +19,7 @@ export const HYGIENE = [
     { label: "Brushed teeth (AM)", emoji: "🪥", key: "teeth_am" },
     { label: "Brushed teeth (PM)", emoji: "🌙", key: "teeth_pm" },
     { label: "Bath / Shower", emoji: "🚿", key: "bath" },
-    { label: "Skincare", emoji: "✨", key: "skincare" },
+    { label: "Shave", emoji: "✨", key: "skincare" },
 ];
 export const CLEANING = [
     { label: "Dishes", emoji: "🍽️", key: "dishes" },
