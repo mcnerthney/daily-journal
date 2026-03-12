@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { fetchLists, createList, updateList, deleteList } from "../utils";
 
 export default function Lists({ token, socket }) {
@@ -11,6 +11,12 @@ export default function Lists({ token, socket }) {
     const [error, setError] = useState("");
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+    const inputStyle = {
+        background: "#161622",
+        color: "#e8e8f0",
+        border: "1px solid #34344a",
+        borderRadius: "6px",
+    };
 
     // load lists
     useEffect(() => {
@@ -55,6 +61,22 @@ export default function Lists({ token, socket }) {
         setShareInput("");
     };
 
+    const applyListUpdate = (updated) => {
+        setLists((prev) => prev.map((list) => (list._id === updated._id ? updated : list)));
+    };
+
+    const saveItems = async (items, errorMessage) => {
+        if (!selectedId) return;
+        try {
+            const updated = await updateList(selectedId, { items }, authHeaders);
+            applyListUpdate(updated);
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(errorMessage);
+        }
+    };
+
     const saveNewList = async () => {
         if (!newName.trim()) return;
         try {
@@ -75,8 +97,9 @@ export default function Lists({ token, socket }) {
         const items = [...(list.items || []), { text: newItem.trim(), done: false }];
         try {
             const updated = await updateList(selectedId, { items }, authHeaders);
-            setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            applyListUpdate(updated);
             setNewItem("");
+            setError("");
         } catch (e) {
             console.error(e);
             setError("Unable to add item");
@@ -86,13 +109,31 @@ export default function Lists({ token, socket }) {
     const toggleItem = async (index) => {
         const list = lists.find((l) => l._id === selectedId);
         const items = list.items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
-        try {
-            const updated = await updateList(selectedId, { items }, authHeaders);
-            setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
-        } catch (e) {
-            console.error(e);
-            setError("Unable to toggle item");
-        }
+        await saveItems(items, "Unable to toggle item");
+    };
+
+    const renameItem = async (index, value) => {
+        const list = lists.find((l) => l._id === selectedId);
+        if (!list) return;
+        const text = value.trim();
+        if (!text || text === list.items?.[index]?.text) return;
+        const items = list.items.map((it, i) => (i === index ? { ...it, text } : it));
+        await saveItems(items, "Unable to rename item");
+    };
+
+    const moveItem = async (index, direction) => {
+        const list = lists.find((l) => l._id === selectedId);
+        const items = [...(list?.items || [])];
+        const nextIndex = index + direction;
+        if (!items[index] || nextIndex < 0 || nextIndex >= items.length) return;
+        [items[index], items[nextIndex]] = [items[nextIndex], items[index]];
+        await saveItems(items, "Unable to reorder items");
+    };
+
+    const deleteItem = async (index) => {
+        const list = lists.find((l) => l._id === selectedId);
+        const items = (list?.items || []).filter((_, itemIndex) => itemIndex !== index);
+        await saveItems(items, "Unable to delete item");
     };
 
     const changeName = async (name) => {
@@ -100,7 +141,8 @@ export default function Lists({ token, socket }) {
         if (!list) return;
         try {
             const updated = await updateList(selectedId, { name }, authHeaders);
-            setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            applyListUpdate(updated);
+            setError("");
         } catch (e) {
             console.error(e);
             setError("Unable to rename");
@@ -111,7 +153,8 @@ export default function Lists({ token, socket }) {
         const emails = shareInput.split(",").map(s => s.trim()).filter(Boolean);
         try {
             const updated = await updateList(selectedId, { shareWithEmails: emails }, authHeaders);
-            setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+            applyListUpdate(updated);
+            setError("");
         } catch (e) {
             console.error(e);
             setError("Unable to update sharing");
@@ -160,7 +203,7 @@ export default function Lists({ token, socket }) {
                         ))}
                     </ul>
                     <div style={{ marginTop: "16px" }}>
-                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ width: "100%", padding: "6px" }} />
+                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "6px" }} />
                         <div style={{ marginTop: "8px", fontSize: "14px" }}>
                             <label>
                                 <input
@@ -178,7 +221,18 @@ export default function Lists({ token, socket }) {
                     {selectedId && (
                         <div>
                             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                                <input value={selected.name} onChange={e => changeName(e.target.value)} disabled={!isOwner} style={{ fontSize: "18px", background: isOwner ? "" : "#1a1a23" }} />
+                                <input
+                                    value={selected.name}
+                                    onChange={e => changeName(e.target.value)}
+                                    disabled={!isOwner}
+                                    style={{
+                                        ...inputStyle,
+                                        fontSize: "18px",
+                                        padding: "6px 8px",
+                                        opacity: isOwner ? 1 : 0.7,
+                                        background: isOwner ? inputStyle.background : "#1a1a23",
+                                    }}
+                                />
                                 {isOwner && (
                                     <button onClick={deleteCurrent} style={{ color: "#ef4444" }}>Delete</button>
                                 )}
@@ -197,7 +251,8 @@ export default function Lists({ token, socket }) {
                                             onChange={async () => {
                                                 try {
                                                     const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
-                                                    setLists((p) => p.map((l) => (l._id === selectedId ? updated : l)));
+                                                    applyListUpdate(updated);
+                                                    setError("");
                                                 } catch (e) {
                                                     console.error(e);
                                                     setError("Unable to update public flag");
@@ -216,22 +271,47 @@ export default function Lists({ token, socket }) {
                             <h4>Items</h4>
                             <ul style={{ padding: 0, listStyle: "none" }}>
                                 {(selected.items || []).map((it, idx) => (
-                                    <li key={idx}>
-                                        <label style={{ color: it.done ? "#888" : "#e8e8f0" }}>
-                                            <input type="checkbox" checked={it.done} onChange={() => toggleItem(idx)} /> {it.text}
-                                        </label>
+                                    <li key={`${selectedId}-${idx}-${it.text}`} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                                        <input type="checkbox" checked={it.done} onChange={() => toggleItem(idx)} />
+                                        <input
+                                            defaultValue={it.text}
+                                            onBlur={(e) => renameItem(idx, e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") e.currentTarget.blur();
+                                            }}
+                                            style={{
+                                                ...inputStyle,
+                                                flex: 1,
+                                                padding: "6px",
+                                                color: it.done ? "#888" : "#e8e8f0",
+                                                textDecoration: it.done ? "line-through" : "none",
+                                            }}
+                                        />
+                                        <button onClick={() => moveItem(idx, -1)} disabled={idx === 0} aria-label={`Move ${it.text} up`}>
+                                            ↑
+                                        </button>
+                                        <button
+                                            onClick={() => moveItem(idx, 1)}
+                                            disabled={idx === (selected.items || []).length - 1}
+                                            aria-label={`Move ${it.text} down`}
+                                        >
+                                            ↓
+                                        </button>
+                                        <button onClick={() => deleteItem(idx)} aria-label={`Delete ${it.text}`} style={{ color: "#ef4444" }}>
+                                            Delete
+                                        </button>
                                     </li>
                                 ))}
                             </ul>
                             <div style={{ marginTop: "8px" }}>
-                                <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ width: "70%", padding: "6px" }} />
+                                <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, width: "70%", padding: "6px" }} />
                                 <button onClick={addItem} style={{ marginLeft: "8px" }}>Add</button>
                             </div>
                             {isOwner && (
                                 <>
                                     <h4>Share with</h4>
                                     <div>
-                                        <input value={shareInput} onChange={e => setShareInput(e.target.value)} placeholder="comma-separated emails" style={{ width: "100%", padding: "6px" }} />
+                                        <input value={shareInput} onChange={e => setShareInput(e.target.value)} placeholder="comma-separated emails" style={{ ...inputStyle, width: "100%", padding: "6px" }} />
                                         <button onClick={saveShares} style={{ marginTop: "4px" }}>Save</button>
                                     </div>
                                 </>
