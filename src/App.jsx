@@ -72,6 +72,10 @@ export default function App() {
   const currentFeature = FEATURES.find(f => f.key === appView);
   const featureTitle = currentFeature ? currentFeature.label : "";
 
+  // which date are we currently editing? defaults to today but can be changed
+  const currentDate = getTodayKey();
+  const [activeDate, setActiveDate] = useState(currentDate);
+
   // --- handle public list routes ------------------------------------------------
   useEffect(() => {
     const match = window.location.pathname.match(/^\/lists\/public\/([^\/]+)/);
@@ -129,12 +133,13 @@ export default function App() {
   const [authError, setAuthError] = useState("");
   const [viewers, setViewers] = useState(1);
   const [toast, setToast] = useState({ message: "", visible: false });
-  const today = getTodayKey();
+  // keep a constant for the real "today" so we can label toasts appropriately
+  const today = currentDate;
   const socketRef = useRef(null);
 
   // headers helper including auth token
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-  const todayEntry = entries[today] || {};
+  const activeEntry = entries[activeDate] || {};
 
   // Track which saves originated here so we don't flash toast for own updates
   const myPendingSaves = useRef(new Set());
@@ -219,14 +224,14 @@ export default function App() {
   // general debounced updater used by most UI interactions
   const saveTimer = useRef(null);
   const updateEntry = useCallback((updates) => {
-    const merged = { ...todayEntry, ...updates };
-    setEntries(prev => ({ ...prev, [today]: merged }));
+    const merged = { ...activeEntry, ...updates };
+    setEntries(prev => ({ ...prev, [activeDate]: merged }));
     // debounce actual persistence so rapid changes don't spam the server
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      persistEntry(today, merged);
+      persistEntry(activeDate, merged);
     }, 700);
-  }, [today, todayEntry, persistEntry]);
+  }, [activeDate, activeEntry, persistEntry]);
 
   const updateNotes = useCallback((text) => {
     // delegate to the shared updater; it already handles debouncing
@@ -241,11 +246,11 @@ export default function App() {
   }, []);
 
   const toggle = (field, val) => {
-    const cur = todayEntry[field] || [];
+    const cur = activeEntry[field] || [];
     updateEntry({ [field]: cur.includes(val) ? cur.filter(x => x !== val) : [...cur, val] });
   };
   const toggleObj = (field, key) =>
-    updateEntry({ [field]: { ...(todayEntry[field] || {}), [key]: !(todayEntry[field] || {})[key] } });
+    updateEntry({ [field]: { ...(activeEntry[field] || {}), [key]: !(activeEntry[field] || {})[key] } });
 
   const sortedDates = Object.keys(entries).sort().reverse();
   const score = (e) => {
@@ -258,8 +263,8 @@ export default function App() {
     return base + workoutScore;
   };
   const maxScore = MEDICATIONS.length + FOODS.length + HYGIENE.length + CLEANING.length + WORKOUTS.length;
-  const todayScore = score(todayEntry);
-  const scorePct = Math.round((todayScore / maxScore) * 100);
+  const activeScore = score(activeEntry);
+  const scorePct = Math.round((activeScore / maxScore) * 100);
 
   const inputStyle = { background: "#0e0e16", border: "1px solid #2a2a3a", borderRadius: "10px", padding: "8px 12px", color: "#e8e8f0", fontSize: "13px", outline: "none" };
   const textareaStyle = { ...inputStyle, width: "100%", resize: "vertical", lineHeight: 1.6 };
@@ -268,6 +273,7 @@ export default function App() {
   const logout = () => {
     setToken("");
     setAppView("home");
+    setActiveDate(today);
   };
 
   // if we're viewing a public list, render it and nothing else
@@ -347,7 +353,10 @@ export default function App() {
                   key={f.key}
                   onClick={() => {
                     setAppView(f.key);
-                    if (f.key === "journal") setView("today");
+                    if (f.key === "journal") {
+                      setView("today");
+                      setActiveDate(today);
+                    }
                   }}
                   style={{ padding: "16px", borderRadius: "12px", background: "#6d5acd22", border: "1px solid #6d5acd", color: "#c9b8ff", fontSize: "16px", cursor: "pointer" }}
                 >
@@ -394,7 +403,7 @@ export default function App() {
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                 {appView !== "home" && (
                   <button
-                    onClick={() => { setAppView("home"); setView("today"); }}
+                    onClick={() => { setAppView("home"); setView("today"); setActiveDate(today); }}
                     style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px" }}
                   >
                     ← Home
@@ -407,7 +416,22 @@ export default function App() {
                 <SaveIndicator status={saveStatus} />
               </div>
               <div style={{ color: "#666", fontSize: "12px", marginTop: "4px" }}>
-                {formatDate(today)}
+                {formatDate(activeDate)}
+                {activeDate !== today && (
+                  <button
+                    onClick={() => setActiveDate(today)}
+                    style={{
+                      marginLeft: "8px",
+                      background: "none",
+                      border: "none",
+                      color: "#4ade80",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                    }}
+                  >
+                    Today
+                  </button>
+                )}
               </div>
             </div>
             {appView === "journal" && (
@@ -426,10 +450,10 @@ export default function App() {
           {appView === "journal" && view === "today" && (
             <div style={{ marginTop: "14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888", marginBottom: "4px" }}>
-                <span>Today's wellness score</span>
+                <span>{activeDate === today ? "Today's wellness score" : formatDate(activeDate) + " wellness score"}</span>
                 <span style={{ color: scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#ef4444", fontWeight: 600 }}>{scorePct}%</span>
               </div>
-              <ScoreBar score={todayScore} max={maxScore} color={scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#6d5acd"} />
+              <ScoreBar score={activeScore} max={maxScore} color={scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#6d5acd"} />
             </div>
           )}
         </div>
@@ -447,21 +471,21 @@ export default function App() {
         ) : view === "today" ? (
           <>
             <Section title="How are you feeling?" icon="💭" accent="#c9b8ff">
-              <MoodSelector value={todayEntry.mood || null} onChange={v => updateEntry({ mood: v })} />
+              <MoodSelector value={activeEntry.mood || null} onChange={v => updateEntry({ mood: v })} />
 
             </Section>
 
             <Section title="Medication" icon="💊" accent="#fb923c">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {[...MEDICATIONS, ...(todayEntry.customMeds || [])].map(med => (
-                  <ToggleChip key={med} label={med} emoji="💊" checked={(todayEntry.medications || []).includes(med)} onChange={() => toggle("medications", med)} color="#fb923c" />
+                {[...MEDICATIONS, ...(activeEntry.customMeds || [])].map(med => (
+                  <ToggleChip key={med} label={med} emoji="💊" checked={(activeEntry.medications || []).includes(med)} onChange={() => toggle("medications", med)} color="#fb923c" />
                 ))}
               </div>
               <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
                 <input spellCheck={true} value={customMedInput} onChange={e => setCustomMedInput(e.target.value)} placeholder="+ add custom medication…" style={{ ...inputStyle, flex: 1 }}
-                  onKeyDown={e => { if (e.key === "Enter" && customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(todayEntry.customMeds || []), l], medications: [...(todayEntry.medications || []), l] }); setCustomMedInput(""); } }}
+                  onKeyDown={e => { if (e.key === "Enter" && customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(activeEntry.customMeds || []), l], medications: [...(activeEntry.medications || []), l] }); setCustomMedInput(""); } }}
                 />
-                <button onClick={() => { if (customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(todayEntry.customMeds || []), l], medications: [...(todayEntry.medications || []), l] }); setCustomMedInput(""); } }}
+                <button onClick={() => { if (customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(activeEntry.customMeds || []), l], medications: [...(activeEntry.medications || []), l] }); setCustomMedInput(""); } }}
                   style={{ padding: "8px 16px", borderRadius: "10px", border: "1px solid #fb923c", background: "#fb923c22", color: "#fb923c", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
                   Add
                 </button>
@@ -476,7 +500,7 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    value={todayEntry.systolic || ""}
+                    value={activeEntry.systolic || ""}
                     onChange={e => updateEntry({ systolic: parseInt(e.target.value) || null })}
                     style={{ ...inputStyle, width: "80px", textAlign: "center" }}
                   />
@@ -486,7 +510,7 @@ export default function App() {
                   <input
                     type="number"
                     min="0"
-                    value={todayEntry.diastolic || ""}
+                    value={activeEntry.diastolic || ""}
                     onChange={e => updateEntry({ diastolic: parseInt(e.target.value) || null })}
                     style={{ ...inputStyle, width: "80px", textAlign: "center" }}
                   />
@@ -497,20 +521,20 @@ export default function App() {
 
             <Section title="Nutrition" icon="🥗" accent="#4ade80">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-                {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(todayEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="#4ade80" />)}
+                {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(activeEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="#4ade80" />)}
               </div>
-              <textarea spellCheck={true} placeholder="What did you eat today?" value={todayEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
+              <textarea spellCheck={true} placeholder="What did you eat today?" value={activeEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
             </Section>
 
             <Section title="Personal Hygiene" icon="🚿" accent="#38bdf8">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {HYGIENE.map(h => <ToggleChip key={h.key} label={h.label} emoji={h.emoji} checked={!!(todayEntry.hygiene || {})[h.key]} onChange={() => toggleObj("hygiene", h.key)} color="#38bdf8" />)}
+                {HYGIENE.map(h => <ToggleChip key={h.key} label={h.label} emoji={h.emoji} checked={!!(activeEntry.hygiene || {})[h.key]} onChange={() => toggleObj("hygiene", h.key)} color="#38bdf8" />)}
               </div>
             </Section>
 
             <Section title="House Cleaning" icon="🏠" accent="#f472b6">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {CLEANING.map(c => <ToggleChip key={c.key} label={c.label} emoji={c.emoji} checked={!!(todayEntry.cleaning || {})[c.key]} onChange={() => toggleObj("cleaning", c.key)} color="#f472b6" />)}
+                {CLEANING.map(c => <ToggleChip key={c.key} label={c.label} emoji={c.emoji} checked={!!(activeEntry.cleaning || {})[c.key]} onChange={() => toggleObj("cleaning", c.key)} color="#f472b6" />)}
               </div>
             </Section>
 
@@ -522,10 +546,10 @@ export default function App() {
                     <input
                       type="number"
                       min="0"
-                      value={(todayEntry.workouts || {})[w.key] || 0}
+                      value={(activeEntry.workouts || {})[w.key] || 0}
                       onChange={e => updateEntry({
                         workouts: {
-                          ...(todayEntry.workouts || {}),
+                          ...(activeEntry.workouts || {}),
                           [w.key]: parseInt(e.target.value) || 0,
                         }
                       })}
@@ -538,16 +562,16 @@ export default function App() {
             </Section>
 
             <Section title="Journal Notes" icon="📝" accent="#a78bfa">
-              <textarea spellCheck={true} placeholder="How was your day? Anything on your mind…" value={todayEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
+              <textarea spellCheck={true} placeholder="How was your day? Anything on your mind…" value={activeEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
             </Section>
 
             <div style={{ background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "16px", padding: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               {[
-                { label: "Medications taken", val: (todayEntry.medications || []).length, max: MEDICATIONS.length, color: "#fb923c" },
-                { label: "Meals logged", val: (todayEntry.food || []).length, max: FOODS.length, color: "#4ade80" },
-                { label: "Hygiene tasks", val: Object.values(todayEntry.hygiene || {}).filter(Boolean).length, max: HYGIENE.length, color: "#38bdf8" },
-                { label: "Cleaning tasks", val: Object.values(todayEntry.cleaning || {}).filter(Boolean).length, max: CLEANING.length, color: "#f472b6" },
-                { label: "Workouts done", val: todayEntry.workouts ? Object.values(todayEntry.workouts).filter(v => v > 0).length : 0, max: WORKOUTS.length, color: "#fcd34d" },
+                { label: "Medications taken", val: (activeEntry.medications || []).length, max: MEDICATIONS.length, color: "#fb923c" },
+                { label: "Meals logged", val: (activeEntry.food || []).length, max: FOODS.length, color: "#4ade80" },
+                { label: "Hygiene tasks", val: Object.values(activeEntry.hygiene || {}).filter(Boolean).length, max: HYGIENE.length, color: "#38bdf8" },
+                { label: "Cleaning tasks", val: Object.values(activeEntry.cleaning || {}).filter(Boolean).length, max: CLEANING.length, color: "#f472b6" },
+                { label: "Workouts done", val: activeEntry.workouts ? Object.values(activeEntry.workouts).filter(v => v > 0).length : 0, max: WORKOUTS.length, color: "#fcd34d" },
               ].map(s => (
                 <div key={s.label}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888" }}>
@@ -572,7 +596,22 @@ export default function App() {
             </div>
             {sortedDates.length === 0
               ? <div style={{ textAlign: "center", padding: "60px 20px", color: "#555", fontStyle: "italic" }}>No entries yet. Start tracking today!</div>
-              : sortedDates.map(date => <EntryView key={date} date={date} entry={entries[date]} />)
+              : sortedDates.map(date => (
+                  <div
+                    key={date}
+                    style={{
+                      position: "relative",
+                      border: date === activeDate ? "2px solid #4ade80" : undefined,
+                      borderRadius: "14px",
+                    }}
+                  >
+                    <EntryView
+                      date={date}
+                      entry={entries[date]}
+                      onEdit={(d) => { setActiveDate(d); setView("today"); }}
+                    />
+                  </div>
+                ))
             }
           </>
         )}

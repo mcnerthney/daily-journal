@@ -3,7 +3,7 @@ import { formatDate } from "../utils";
 import ScoreBar from "./ScoreBar";
 import { WORKOUTS } from "../data";
 
-export default function EntryView({ entry, date }) {
+export default function EntryView({ entry, date, onEdit }) {
     const mood = null; // mood rendering left to parent if needed
     const counts = [
         { label: `💊 ${(entry.medications || []).length}`, active: (entry.medications || []).length > 0 },
@@ -26,6 +26,20 @@ export default function EntryView({ entry, date }) {
                     {counts.map((b, i) => (
                         <span key={i} style={{ padding: "3px 10px", borderRadius: "10px", background: b.active ? "#6d5acd22" : "#1a1a26", color: b.active ? "#c9b8ff" : "#444", fontSize: "12px" }}>{b.label}</span>
                     ))}
+                    {onEdit && (
+                      <button
+                        onClick={() => onEdit(date)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#4ade80",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                        }}
+                      >
+                        ✏️
+                      </button>
+                    )}
                 </div>
             </div>
             {entry.food_notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.food_notes}</p>}
