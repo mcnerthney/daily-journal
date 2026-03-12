@@ -6,7 +6,7 @@ export const MOODS = [
     { label: "Great", emoji: "😄", color: "#22c55e", value: 5 },
 ];
 
-export const MEDICATIONS = ["Morning meds", "Evening meds", "Vitamins", "Supplements", "PRN / As needed"];
+export const MEDICATIONS = ["Morning meds", "Supplements", "PRN / As needed"];
 export const FOODS = [
     { label: "Breakfast", emoji: "🌅" },
     { label: "Lunch", emoji: "☀️" },

@@ -4,6 +4,8 @@ export default function BpChart({ entries }) {
     const dates = Object.keys(entries).sort();
     if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No data</div>;
 
+
+
     // build arrays, excluding missing/zero readings
     const sysArr = dates
         .map(date => ({ date, val: entries[date].systolic }))
