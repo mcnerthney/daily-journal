@@ -88,6 +88,25 @@ export default function App() {
     }
   }, []);
 
+  // --- listen for updates to public list via websocket --------------------------
+  useEffect(() => {
+    if (!publicListId || !socketRef.current) return;
+    const socket = socketRef.current;
+
+    const handleUpdate = ({ list }) => {
+      if (list && list._id === publicListId) {
+        setPublicList(list);
+        showToast("Public list updated");
+      }
+    };
+
+    socket.on("public-list:updated", handleUpdate);
+
+    return () => {
+      socket.off("public-list:updated", handleUpdate);
+    };
+  }, [publicListId]);
+
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
 
@@ -176,10 +195,12 @@ export default function App() {
 
   // ── Socket.io connection ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!token) return;
+    // connect if we have a token or we're looking at a public list
+    if (!token && !publicListId) return;
+
     const socket = io({
       transports: ["websocket", "polling"],
-      auth: { token },
+      auth: token ? { token } : undefined,
     });
     socketRef.current = socket;
 
@@ -210,7 +231,7 @@ export default function App() {
     });
 
     return () => socket.disconnect();
-  }, [today, showToast, token]);
+  }, [today, showToast, token, publicListId]);
 
   // ── Load all entries on mount ───────────────────────────────────────────────
   useEffect(() => {
