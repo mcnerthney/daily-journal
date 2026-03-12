@@ -12,8 +12,8 @@ export const FOODS = [
     { label: "Lunch", emoji: "☀️" },
     { label: "Dinner", emoji: "🌙" },
     { label: "Snacks", emoji: "🍎" },
-    { label: "Water (8+ glasses)", emoji: "💧" },
-    { label: "No alcohol", emoji: "🚫🍺" },
+    { label: "MorningWater (2 glasses)", emoji: "💧" },
+    { label: "EveningWater (2 glasses)", emoji: "💧" },
 ];
 export const HYGIENE = [
     { label: "Brushed teeth (AM)", emoji: "🪥", key: "teeth_am" },
