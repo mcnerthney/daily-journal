@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { fetchLists, createList, updateList, deleteList } from "../utils";
 
 export default function Lists({ token, socket }) {
@@ -9,6 +9,9 @@ export default function Lists({ token, socket }) {
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
     const [error, setError] = useState("");
+    const dragIndex = useRef(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
+    const [trashOver, setTrashOver] = useState(false);
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -119,15 +122,6 @@ export default function Lists({ token, socket }) {
         if (!text || text === list.items?.[index]?.text) return;
         const items = list.items.map((it, i) => (i === index ? { ...it, text } : it));
         await saveItems(items, "Unable to rename item");
-    };
-
-    const moveItem = async (index, direction) => {
-        const list = lists.find((l) => l._id === selectedId);
-        const items = [...(list?.items || [])];
-        const nextIndex = index + direction;
-        if (!items[index] || nextIndex < 0 || nextIndex >= items.length) return;
-        [items[index], items[nextIndex]] = [items[nextIndex], items[index]];
-        await saveItems(items, "Unable to reorder items");
     };
 
     const deleteItem = async (index) => {
@@ -271,7 +265,40 @@ export default function Lists({ token, socket }) {
                             <h4>Items</h4>
                             <ul style={{ padding: 0, listStyle: "none" }}>
                                 {(selected.items || []).map((it, idx) => (
-                                    <li key={`${selectedId}-${idx}-${it.text}`} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                                    <li
+                                        key={`${selectedId}-${idx}-${it.text}`}
+                                        draggable
+                                        onDragStart={() => { dragIndex.current = idx; }}
+                                        onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
+                                        onDrop={async () => {
+                                            if (dragIndex.current === null || dragIndex.current === idx) {
+                                                setDragOverIndex(null);
+                                                dragIndex.current = null;
+                                                return;
+                                            }
+                                            const list = lists.find((l) => l._id === selectedId);
+                                            const items = [...(list?.items || [])];
+                                            const [moved] = items.splice(dragIndex.current, 1);
+                                            items.splice(idx, 0, moved);
+                                            setDragOverIndex(null);
+                                            dragIndex.current = null;
+                                            await saveItems(items, "Unable to reorder items");
+                                        }}
+                                        onDragEnd={() => { setDragOverIndex(null); setTrashOver(false); dragIndex.current = null; }}
+                                        style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "8px",
+                                            marginBottom: "8px",
+                                            borderTop: dragOverIndex === idx ? "2px solid #6d5acd" : "2px solid transparent",
+                                        }}
+                                    >
+                                        <span
+                                            style={{ cursor: "grab", color: "#555", userSelect: "none", fontSize: "18px", lineHeight: 1 }}
+                                            title="Drag to reorder"
+                                        >
+                                            ⠿
+                                        </span>
                                         <input type="checkbox" checked={it.done} onChange={() => toggleItem(idx)} />
                                         <input
                                             defaultValue={it.text}
@@ -287,22 +314,38 @@ export default function Lists({ token, socket }) {
                                                 textDecoration: it.done ? "line-through" : "none",
                                             }}
                                         />
-                                        <button onClick={() => moveItem(idx, -1)} disabled={idx === 0} aria-label={`Move ${it.text} up`}>
-                                            ↑
-                                        </button>
-                                        <button
-                                            onClick={() => moveItem(idx, 1)}
-                                            disabled={idx === (selected.items || []).length - 1}
-                                            aria-label={`Move ${it.text} down`}
-                                        >
-                                            ↓
-                                        </button>
-                                        <button onClick={() => deleteItem(idx)} aria-label={`Delete ${it.text}`} style={{ color: "#ef4444" }}>
-                                            Delete
-                                        </button>
                                     </li>
                                 ))}
                             </ul>
+                            <div
+                                onDragOver={(e) => { e.preventDefault(); setTrashOver(true); }}
+                                onDragLeave={() => setTrashOver(false)}
+                                onDrop={async () => {
+                                    setTrashOver(false);
+                                    if (dragIndex.current !== null) {
+                                        const idx = dragIndex.current;
+                                        dragIndex.current = null;
+                                        await deleteItem(idx);
+                                    }
+                                }}
+                                title="Drop here to delete"
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    width: "36px",
+                                    height: "36px",
+                                    borderRadius: "6px",
+                                    border: `2px dashed ${trashOver ? "#ef4444" : "#555"}`,
+                                    background: trashOver ? "#ef444422" : "transparent",
+                                    fontSize: "18px",
+                                    marginBottom: "8px",
+                                    transition: "all 0.15s",
+                                    cursor: "default",
+                                }}
+                            >
+                                🗑️
+                            </div>
                             <div style={{ marginTop: "8px" }}>
                                 <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, width: "70%", padding: "6px" }} />
                                 <button onClick={addItem} style={{ marginLeft: "8px" }}>Add</button>
