@@ -389,20 +389,21 @@ export default function App() {
 
   // if we're viewing a public list, render it and nothing else
   if (publicListKey) {
+    const visiblePublicItems = (publicList?.items || []).filter((it) => !it.done);
     return (
       <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px" }}>
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px" }}>{publicList.name}</h1>
             <ul style={{ listStyle: "none", padding: 0 }}>
-              {(publicList.items || []).map((it, idx) => (
+              {visiblePublicItems.map((it, idx) => (
                 <li key={idx} style={{ marginBottom: "6px" }}>
                   <span style={{ color: it.done ? "#888" : "#e8e8f0" }}>{it.text}</span>
                 </li>
               ))}
             </ul>
             <div style={{ marginTop: "20px", fontSize: "12px", color: "#888" }}>
-              {publicList.items && publicList.items.length === 0 && "(empty list)"}
+              {visiblePublicItems.length === 0 && "(empty list)"}
             </div>
           </div>
         ) : (
