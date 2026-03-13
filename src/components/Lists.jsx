@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchLists, createList, updateList, deleteList } from "../utils";
 
-export default function Lists({ token, socket }) {
+export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList }) {
     const [lists, setLists] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [newName, setNewName] = useState("");
@@ -32,6 +32,15 @@ export default function Lists({ token, socket }) {
             });
     }, [token]);
 
+    // keep selection synced with hash route when App drives this screen
+    useEffect(() => {
+        if (routeSelectedId === undefined) return;
+        setSelectedId(routeSelectedId || null);
+        setNewItem("");
+        setShareInput("");
+        setError("");
+    }, [routeSelectedId]);
+
     // subscribe to realtime updates
     useEffect(() => {
         if (!socket) return;
@@ -48,7 +57,10 @@ export default function Lists({ token, socket }) {
         };
         const delHandler = ({ id }) => {
             setLists((prev) => prev.filter((l) => l._id !== id));
-            if (selectedId === id) setSelectedId(null);
+            if (selectedId === id) {
+                setSelectedId(null);
+                if (onCloseList) onCloseList();
+            }
         };
         socket.on("list:updated", handler);
         socket.on("list:deleted", delHandler);
@@ -56,16 +68,24 @@ export default function Lists({ token, socket }) {
             socket.off("list:updated", handler);
             socket.off("list:deleted", delHandler);
         };
-    }, [socket, selectedId]);
+    }, [socket, selectedId, onCloseList]);
 
     const selectList = (id) => {
-        setSelectedId(id);
+        if (onSelectList) {
+            onSelectList(id);
+        } else {
+            setSelectedId(id);
+        }
         setNewItem("");
         setShareInput("");
     };
 
     const backToLists = () => {
-        setSelectedId(null);
+        if (onCloseList) {
+            onCloseList();
+        } else {
+            setSelectedId(null);
+        }
         setNewItem("");
         setShareInput("");
         setError("");
@@ -167,7 +187,11 @@ export default function Lists({ token, socket }) {
         try {
             await deleteList(selectedId, authHeaders);
             setLists((p) => p.filter((l) => l._id !== selectedId));
-            setSelectedId(null);
+            if (onCloseList) {
+                onCloseList();
+            } else {
+                setSelectedId(null);
+            }
         } catch (e) {
             console.error(e);
             setError("Unable to delete");
@@ -187,6 +211,21 @@ export default function Lists({ token, socket }) {
     };
     const me = decodeToken(token).userId;
     const isOwner = selected.owner === me;
+
+    if (selectedId && !selected._id) {
+        return (
+            <div style={{ minHeight: "calc(100vh - 180px)", display: "grid", gap: "12px" }}>
+                <button
+                    onClick={backToLists}
+                    style={{ justifySelf: "start", background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                >
+                    ← Back to lists
+                </button>
+                <div style={{ color: "#888" }}>Loading list...</div>
+                {error && <div style={{ color: "#ef4444" }}>{error}</div>}
+            </div>
+        );
+    }
 
     if (selectedId) {
         return (

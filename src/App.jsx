@@ -98,15 +98,80 @@ export default function App() {
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
+  const [selectedListIdRoute, setSelectedListIdRoute] = useState(null);
   const [publicListKey, setPublicListKey] = useState(null);
   const [publicListId, setPublicListId] = useState(null);
   const [publicList, setPublicList] = useState(null);
 
   const isUuid = useCallback((v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v), []);
 
+  const parseRoute = useCallback((route) => {
+    const clean = (route || "").replace(/^#/, "");
+
+    if (!clean) {
+      return { appView: "home", selectedListId: null, resetJournalView: false };
+    }
+    if (clean === "journal") {
+      return { appView: "journal", selectedListId: null, resetJournalView: true };
+    }
+    if (clean === "lists") {
+      return { appView: "lists", selectedListId: null, resetJournalView: false };
+    }
+
+    const listEditMatch = clean.match(/^lists\/edit\/(.+)$/);
+    if (listEditMatch) {
+      let selectedListId = listEditMatch[1];
+      try {
+        selectedListId = decodeURIComponent(selectedListId);
+      } catch (_) {
+        // keep raw id if decode fails so route still resolves
+      }
+      return { appView: "lists", selectedListId, resetJournalView: false };
+    }
+
+    if (clean === "stats") {
+      return { appView: "stats", selectedListId: null, resetJournalView: false };
+    }
+
+    return { appView: clean, selectedListId: null, resetJournalView: false };
+  }, []);
+
+  const applyRouteState = useCallback((routeState) => {
+    setAppView(routeState.appView);
+    setSelectedListIdRoute(routeState.selectedListId);
+    if (routeState.resetJournalView) {
+      setView("today");
+    }
+  }, []);
+
+  const navigateToRoute = useCallback((route, options = {}) => {
+    const { replace = false } = options;
+    const routeState = parseRoute(route);
+    applyRouteState(routeState);
+
+    const base = `${window.location.pathname}${window.location.search}`;
+    const target = route ? `${base}#${route}` : base;
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (current === target) return;
+
+    if (replace) {
+      history.replaceState(null, "", target);
+      return;
+    }
+
+    if (!route) {
+      history.replaceState(null, "", base);
+      return;
+    }
+
+    window.location.hash = route;
+  }, [applyRouteState, parseRoute]);
+
   // derive feature metadata from the list
   const currentFeature = FEATURES.find(f => f.key === appView);
-  const featureTitle = currentFeature ? currentFeature.label : "";
+  const featureTitle = appView === "lists" && selectedListIdRoute
+    ? "List Editor"
+    : (currentFeature ? currentFeature.label : "");
 
   // which date are we currently editing? defaults to today but can be changed
   const currentDate = getTodayKey();
@@ -145,53 +210,17 @@ export default function App() {
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
 
-  const routes = {
-    home: () => setAppView("home"),
-    journal: () => {
-      setAppView("journal");
-      setView("today");
-    },
-    stats: () => setAppView("stats")
-  };
-
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = location.hash.replace("#", "") || "home";
-      routes[hash]?.();
+      const hash = window.location.hash.replace("#", "");
+      applyRouteState(parseRoute(hash));
     };
 
     window.addEventListener("hashchange", handleHashChange);
     handleHashChange();
 
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
-
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = location.hash.replace("#", "") || "home";
-      if (!FEATURES.some(f => f.key === hash)) return;
-
-      setAppView(hash);
-      if (hash === "journal") setView("today");
-    };
-
-    window.addEventListener("hashchange", handleHashChange);
-    handleHashChange();
-
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, []);
-
-  // reflect state in the hash when appView changes
-  useEffect(() => {
-    if (appView === "home") {
-      // remove hash while preserving path
-      history.replaceState(null, "", window.location.pathname);
-    } else {
-      if (window.location.hash !== appView) {
-        window.location.hash = appView;
-      }
-    }
-  }, [appView]);
+  }, [applyRouteState, parseRoute]);
 
   // keep localStorage in sync
   useEffect(() => {
@@ -393,8 +422,8 @@ export default function App() {
   // ── Render ──────────────────────────────────────────────────────────────────
   const logout = () => {
     setToken("");
-    setAppView("home");
     setActiveDate(today);
+    navigateToRoute("", { replace: true });
   };
 
   // if we're viewing a public list, render it and nothing else
@@ -509,11 +538,8 @@ export default function App() {
                 <button
                   key={f.key}
                   onClick={() => {
-                    setAppView(f.key);
-                    if (f.key === "journal") {
-                      setView("today");
-                      setActiveDate(today);
-                    }
+                    navigateToRoute(f.key);
+                    if (f.key === "journal") setActiveDate(today);
                   }}
                   style={{ padding: "16px", borderRadius: "12px", background: "#6d5acd22", border: "1px solid #6d5acd", color: "#c9b8ff", fontSize: "16px", cursor: "pointer" }}
                 >
@@ -536,7 +562,7 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px", textAlign: "center" }}>
         <h2 style={{ color: "#c9b8ff" }}>Feature "{appView}" not available yet</h2>
-        <button onClick={() => setAppView("home")} style={{ marginTop: "24px", padding: "8px 16px", borderRadius: "8px", border: "1px solid #6d5acd", background: "#6d5acd22", color: "#c9b8ff", cursor: "pointer" }}>
+        <button onClick={() => navigateToRoute("")} style={{ marginTop: "24px", padding: "8px 16px", borderRadius: "8px", border: "1px solid #6d5acd", background: "#6d5acd22", color: "#c9b8ff", cursor: "pointer" }}>
           ← Back to home
         </button>
       </div>
@@ -560,7 +586,7 @@ export default function App() {
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                 {appView !== "home" && (
                   <button
-                    onClick={() => { setAppView("home"); setView("today"); setActiveDate(today); }}
+                    onClick={() => { navigateToRoute(""); setView("today"); setActiveDate(today); }}
                     style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px" }}
                   >
                     ← Home
@@ -619,7 +645,13 @@ export default function App() {
       {/* Body */}
       <div style={{ maxWidth: "680px", margin: "0 auto", padding: "20px 16px 80px" }}>
         {appView === "lists" ? (
-          <Lists token={token} socket={socketRef.current} />
+          <Lists
+            token={token}
+            socket={socketRef.current}
+            selectedId={selectedListIdRoute}
+            onSelectList={(id) => navigateToRoute(`lists/edit/${encodeURIComponent(id)}`)}
+            onCloseList={() => navigateToRoute("lists")}
+          />
         ) : loading ? (
           <div style={{ textAlign: "center", padding: "80px 0", color: "#555" }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>📓</div>
