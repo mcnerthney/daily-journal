@@ -380,7 +380,15 @@ app.post("/api/lists", auth, async (req, res) => {
     if (!name) return res.status(400).json({ error: "Missing name" });
     const owner = req.userId;
     const sharedWith = await resolveEmails(shareWithEmails);
-    const doc = { name, owner, items, sharedWith, shareWithEmails };
+    const doc = {
+      name,
+      owner,
+      items,
+      sharedWith,
+      shareWithEmails,
+      publicViewCount: 0,
+      publicLastViewedAt: null,
+    };
     if (isPublic) {
       doc.public = true;
       doc.publicId = crypto.randomUUID();
@@ -573,7 +581,23 @@ app.get("/api/public/:publicKey", async (req, res) => {
       doc = await lists().findOne({ publicId: key, public: true });
     }
     if (!doc) return res.status(404).json({ error: "Not found" });
-    const { _id, owner, sharedWith, shareWithEmails, ...data } = doc;
+
+    const nextPublicViewCount = (doc.publicViewCount || 0) + 1;
+    const currentViewedAt = new Date();
+    await lists().updateOne(
+      { _id: doc._id },
+      { $set: { publicViewCount: nextPublicViewCount, publicLastViewedAt: currentViewedAt } }
+    );
+
+    const updatedDoc = {
+      ...doc,
+      publicViewCount: nextPublicViewCount,
+      publicLastViewedAt: currentViewedAt,
+    };
+    const recipients = [updatedDoc.owner, ...(updatedDoc.sharedWith || [])];
+    recipients.forEach((u) => io.to(u).emit("list:updated", updatedDoc));
+
+    const { _id, owner, sharedWith, shareWithEmails, ...data } = updatedDoc;
     res.json(data);
   } catch (err) {
     console.error(err);

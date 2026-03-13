@@ -199,6 +199,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     };
 
     const selected = lists.find((l) => l._id === selectedId) || {};
+    const publicLastViewedAtLabel = selected.publicLastViewedAt
+        ? new Date(selected.publicLastViewedAt).toLocaleString()
+        : "Never";
 
     // decode simple JWT to access userId for owner checks
     const decodeToken = (t) => {
@@ -281,6 +284,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             </label>
                             {selected.public && (selected.publicSlug || selected.publicId) && (
                                 <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
+                                    <div>
+                                        Public views: {selected.publicViewCount || 0}
+                                    </div>
+                                    <div>
+                                        Last viewed: {publicLastViewedAtLabel}
+                                    </div>
                                     {selected.publicSlug && (
                                         <div>
                                             Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
