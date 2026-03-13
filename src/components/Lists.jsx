@@ -346,7 +346,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                     flex: 1,
                                     padding: "6px",
                                     color: it.done ? "#888" : "#e8e8f0",
-                                    textDecoration: it.done ? "line-through" : "none",
+                                    //textDecoration: it.done ? "line-through" : "none",
                                 }}
                             />
                         </li>
