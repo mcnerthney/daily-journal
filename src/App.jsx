@@ -45,7 +45,10 @@ async function doLogin(email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw new Error("login failed");
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Login failed");
+  }
   return res.json(); // { token }
 }
 
@@ -55,7 +58,62 @@ async function doRegister(email, password) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  if (!res.ok) throw new Error("register failed");
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Registration failed");
+  }
+  return res.json();
+}
+
+async function doVerifyEmail(token) {
+  const res = await fetch(`${API}/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Email verification failed");
+  }
+  return res.json();
+}
+
+async function doResendVerification(email) {
+  const res = await fetch(`${API}/verify-email/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Could not resend verification email");
+  }
+  return res.json();
+}
+
+async function doRequestPasswordReset(email) {
+  const res = await fetch(`${API}/password-reset/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Could not request password reset");
+  }
+  return res.json();
+}
+
+async function doConfirmPasswordReset(token, password) {
+  const res = await fetch(`${API}/password-reset/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Could not reset password");
+  }
   return res.json();
 }
 
@@ -166,6 +224,9 @@ export default function App() {
   const [connected, setConnected] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // or register
   const [authError, setAuthError] = useState("");
+  const [authMessage, setAuthMessage] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [viewers, setViewers] = useState(1);
   const [toast, setToast] = useState({ message: "", visible: false });
   // keep a constant for the real "today" so we can label toasts appropriately
@@ -184,6 +245,38 @@ export default function App() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast({ message, visible: true });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verifyToken = params.get("verifyToken");
+    const incomingResetToken = params.get("resetToken");
+
+    if (!verifyToken && !incomingResetToken) return;
+
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+    window.history.replaceState(null, "", cleanUrl);
+
+    if (verifyToken) {
+      doVerifyEmail(verifyToken)
+        .then(() => {
+          setAuthMode("login");
+          setAuthMessage("Email verified. You can sign in now.");
+          setAuthError("");
+        })
+        .catch((err) => {
+          setAuthError(err.message || "Verification link is invalid or expired");
+          setAuthMessage("");
+          setAuthMode("login");
+        });
+    }
+
+    if (incomingResetToken) {
+      setResetToken(incomingResetToken);
+      setAuthMode("reset");
+      setAuthMessage("Set your new password.");
+      setAuthError("");
+    }
   }, []);
 
   // ── Socket.io connection ────────────────────────────────────────────────────
@@ -374,36 +467,94 @@ export default function App() {
 
         {!token ? (
           <div style={{ maxWidth: 300, margin: "24px auto", background: "#12121a", padding: 24, borderRadius: 12 }}>
-            <h2 style={{ marginBottom: 16, color: "#c9b8ff", textAlign: "center" }}>{authMode === "login" ? "Sign In" : "Register"}</h2>
+            <h2 style={{ marginBottom: 16, color: "#c9b8ff", textAlign: "center" }}>
+              {authMode === "login" && "Sign In"}
+              {authMode === "register" && "Register"}
+              {authMode === "forgot" && "Reset Password"}
+              {authMode === "reset" && "Choose New Password"}
+            </h2>
             <AuthForm
               mode={authMode}
-              onSubmit={async (email, pass) => {
+              onSubmit={async ({ email, password, confirmPassword }) => {
                 setAuthError("");
+                setAuthMessage("");
                 try {
                   if (authMode === "login") {
-                    const { token } = await doLogin(email, pass);
+                    const { token } = await doLogin(email, password);
                     setToken(token);
-                  } else {
-                    await doRegister(email, pass);
+                  } else if (authMode === "register") {
+                    await doRegister(email, password);
+                    setPendingEmail(email);
                     setAuthMode("login");
+                    setAuthMessage("Account created. Check your email to verify before signing in.");
+                  } else if (authMode === "forgot") {
+                    await doRequestPasswordReset(email);
+                    setAuthMode("login");
+                    setAuthMessage("If that email exists, a reset link has been sent.");
+                  } else if (authMode === "reset") {
+                    if (!resetToken) throw new Error("Missing reset token");
+                    if (password !== confirmPassword) throw new Error("Passwords do not match");
+                    await doConfirmPasswordReset(resetToken, password);
+                    setResetToken("");
+                    setAuthMode("login");
+                    setAuthMessage("Password updated. Sign in with your new password.");
                   }
                 } catch (e) {
+                  if (email && /not verified/i.test(e.message || "")) {
+                    setPendingEmail(email);
+                  }
                   setAuthError(e.message);
                 }
               }}
             />
             <div style={{ marginTop: 12, textAlign: "center" }}>
-              {authMode === "login" ? (
-                <button onClick={() => setAuthMode("register")} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
-                  Need an account?
-                </button>
-              ) : (
-                <button onClick={() => setAuthMode("login")} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+              {authMode === "login" && (
+                <>
+                  <button onClick={() => { setAuthMode("register"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", marginRight: "10px" }}>
+                    Need an account?
+                  </button>
+                  <button onClick={() => { setAuthMode("forgot"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#fcd34d", cursor: "pointer" }}>
+                    Forgot password?
+                  </button>
+                </>
+              )}
+              {authMode === "register" && (
+                <button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
                   Have an account?
                 </button>
               )}
+              {authMode === "forgot" && (
+                <button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                  Back to sign in
+                </button>
+              )}
+              {authMode === "reset" && (
+                <button onClick={() => { setAuthMode("login"); setResetToken(""); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                  Back to sign in
+                </button>
+              )}
             </div>
+            {authMode === "login" && pendingEmail && (
+              <div style={{ marginTop: 8, textAlign: "center" }}>
+                <button
+                  onClick={async () => {
+                    setAuthError("");
+                    setAuthMessage("");
+                    try {
+                      await doResendVerification(pendingEmail);
+                      setAuthMessage("Verification email sent again.");
+                    } catch (err) {
+                      setAuthError(err.message || "Could not resend verification email");
+                    }
+                  }}
+                  style={{ background: "none", border: "none", color: "#fcd34d", cursor: "pointer", fontSize: 13 }}
+                >
+                  Resend verification email
+                </button>
+              </div>
+            )}
             {authError && <div style={{ color: "#ef4444", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authError}</div>}
+            {authMessage && <div style={{ color: "#4ade80", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authMessage}</div>}
           </div>
         ) : (
           <>

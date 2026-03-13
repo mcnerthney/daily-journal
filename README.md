@@ -33,7 +33,11 @@ The journal now supports per-user auth; all `/api/entries` routes require a **Be
 | Method | Path                  | Description              |
 |--------|-----------------------|--------------------------|
 | POST   | /api/register         | Create a new user (email/password) |
+| POST   | /api/verify-email     | Verify a registration token |
+| POST   | /api/verify-email/request | Resend verification email |
 | POST   | /api/login            | Obtain JWT token by credentials |
+| POST   | /api/password-reset/request | Request password reset email |
+| POST   | /api/password-reset/confirm | Reset password with token |
 | GET    | /api/health           | Health check (no auth)   |
 | GET    | /api/entries          | All entries for logged‑in user |
 | GET    | /api/entries/:date    | Single day entry for user |
@@ -54,6 +58,20 @@ Dates use `YYYY-MM-DD` format.
 > **Existing data notice:** After enabling auth, only entries with a `userId` field are returned. You can migrate old documents by updating them in Mongo (e.g. `db.entries.updateMany({}, { $set: { userId: "<someId>" } })`) or simply start fresh per user.
 
 For authenticated endpoints include `Authorization: Bearer <token>` header.
+
+## Email Configuration
+
+To enable real emails for verification and password reset, set these server environment variables:
+
+- `APP_BASE_URL` (example `http://localhost:3000`)
+- `EMAIL_FROM`
+- `SMTP_HOST`
+- `SMTP_PORT` (defaults to `587`)
+- `SMTP_SECURE` (`true` or `false`)
+- `SMTP_USER`
+- `SMTP_PASS`
+
+If SMTP variables are not set, the server logs email links to stdout as a development preview.
 ## Development (no Docker)
 
 Start MongoDB locally, then:

@@ -91,7 +91,8 @@ jobs:
             --cpu 1 \
             --min-instances 0 \
             --max-instances 5 \
-            --update-secrets "MONGO_URI=journal-mongo-uri:latest" \
+            --set-env-vars "SMTP_HOST=${{ secrets.SMTP_HOST }},SMTP_PORT=${{ secrets.SMTP_PORT }},SMTP_SECURE=${{ secrets.SMTP_SECURE }},SMTP_USER=${{ secrets.SMTP_USER }},EMAIL_FROM=${{ secrets.EMAIL_FROM }}" \
+            --update-secrets "MONGO_URI=journal-mongo-uri:latest,SMTP_PASS=journal-smtp-pass:latest" \
             --quiet
 
       - name: Deploy Web to Cloud Run

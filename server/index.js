@@ -6,6 +6,7 @@ import { MongoClient, ObjectId } from "mongodb";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import nodemailer from "nodemailer";
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,9 +15,92 @@ const MONGO_URI = process.env.MONGO_URI || "mongodb://mongo:27017";
 const DB_NAME = "daily_journal";
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-change-me";
+const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:3000";
+const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@daily-journal.local";
+const EMAIL_VERIFICATION_TTL_MINUTES = Number(process.env.EMAIL_VERIFICATION_TTL_MINUTES || 60 * 24);
+const PASSWORD_RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30);
+
+const SMTP_HOST = process.env.SMTP_HOST || "";
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = process.env.SMTP_SECURE === "true";
+const SMTP_USER = process.env.SMTP_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || "";
+
+let mailTransporter = null;
 
 app.use(cors({ origin: "*" }));
 app.use(express.json());
+
+function normalizeEmail(email = "") {
+  return email.trim().toLowerCase();
+}
+
+function generateRawToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function tokenExpiryDate(minutes) {
+  return new Date(Date.now() + minutes * 60 * 1000);
+}
+
+function buildClientUrl(paramName, token) {
+  const url = new URL(APP_BASE_URL);
+  url.searchParams.set(paramName, token);
+  return url.toString();
+}
+
+async function sendEmail({ to, subject, text, html }) {
+  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
+    console.log("📧 Email preview (SMTP not configured)");
+    console.log({ to, subject, text });
+    return { delivered: false, preview: true };
+  }
+
+  if (!mailTransporter) {
+    mailTransporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+    });
+  }
+
+  await mailTransporter.sendMail({
+    from: EMAIL_FROM,
+    to,
+    subject,
+    text,
+    html,
+  });
+  return { delivered: true, preview: false };
+}
+
+async function sendVerificationEmail(email, rawToken) {
+  const verifyUrl = buildClientUrl("verifyToken", rawToken);
+  return sendEmail({
+    to: email,
+    subject: "Verify your Daily Journal email",
+    text: `Welcome to Daily Journal. Verify your email by opening this link: ${verifyUrl}`,
+    html: `<p>Welcome to Daily Journal.</p><p>Verify your email by clicking <a href="${verifyUrl}">this link</a>.</p>`,
+  });
+}
+
+async function sendPasswordResetEmail(email, rawToken) {
+  const resetUrl = buildClientUrl("resetToken", rawToken);
+  return sendEmail({
+    to: email,
+    subject: "Reset your Daily Journal password",
+    text: `You can reset your password by opening this link: ${resetUrl}`,
+    html: `<p>You requested a password reset.</p><p>Reset it by clicking <a href="${resetUrl}">this link</a>.</p>`,
+  });
+}
 
 // --- simple JWT auth middleware ------------------------------------------------
 function auth(req, res, next) {
@@ -155,26 +239,160 @@ app.get("/api/health", (_req, res) => {
 // ── Authentication routes ────────────────────────────────────────────────────
 app.post("/api/register", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { password } = req.body;
     if (!email || !password) return res.status(400).json({ error: "Missing fields" });
     const existing = await db.collection("users").findOne({ email });
     if (existing) return res.status(400).json({ error: "User already exists" });
+
+    const verificationToken = generateRawToken();
+    const verificationTokenHash = hashToken(verificationToken);
     const hash = await bcrypt.hash(password, 10);
-    await db.collection("users").insertOne({ email, password: hash });
-    res.json({ ok: true });
+    await db.collection("users").insertOne({
+      email,
+      password: hash,
+      emailVerified: false,
+      emailVerificationTokenHash: verificationTokenHash,
+      emailVerificationExpiresAt: tokenExpiryDate(EMAIL_VERIFICATION_TTL_MINUTES),
+      createdAt: new Date(),
+    });
+
+    await sendVerificationEmail(email, verificationToken);
+    res.json({ ok: true, requiresEmailVerification: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Registration failed" });
   }
 });
 
+app.post("/api/verify-email/request", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    if (!email) return res.status(400).json({ error: "Missing email" });
+
+    const user = await db.collection("users").findOne({ email });
+    if (!user || user.emailVerified) {
+      return res.json({ ok: true });
+    }
+
+    const verificationToken = generateRawToken();
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          emailVerificationTokenHash: hashToken(verificationToken),
+          emailVerificationExpiresAt: tokenExpiryDate(EMAIL_VERIFICATION_TTL_MINUTES),
+        },
+      }
+    );
+
+    await sendVerificationEmail(user.email, verificationToken);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Could not resend verification email" });
+  }
+});
+
+app.post("/api/verify-email", async (req, res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: "Missing token" });
+
+    const user = await db.collection("users").findOne({
+      emailVerificationTokenHash: hashToken(token),
+      emailVerificationExpiresAt: { $gt: new Date() },
+    });
+
+    if (!user) return res.status(400).json({ error: "Invalid or expired verification token" });
+
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      {
+        $set: { emailVerified: true },
+        $unset: {
+          emailVerificationTokenHash: "",
+          emailVerificationExpiresAt: "",
+        },
+      }
+    );
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Email verification failed" });
+  }
+});
+
+app.post("/api/password-reset/request", async (req, res) => {
+  try {
+    const email = normalizeEmail(req.body.email);
+    if (!email) return res.status(400).json({ error: "Missing email" });
+
+    const user = await db.collection("users").findOne({ email });
+    if (!user) return res.json({ ok: true });
+
+    const resetToken = generateRawToken();
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          passwordResetTokenHash: hashToken(resetToken),
+          passwordResetExpiresAt: tokenExpiryDate(PASSWORD_RESET_TTL_MINUTES),
+        },
+      }
+    );
+
+    await sendPasswordResetEmail(email, resetToken);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Could not process reset request" });
+  }
+});
+
+app.post("/api/password-reset/confirm", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: "Missing fields" });
+
+    const user = await db.collection("users").findOne({
+      passwordResetTokenHash: hashToken(token),
+      passwordResetExpiresAt: { $gt: new Date() },
+    });
+
+    if (!user) return res.status(400).json({ error: "Invalid or expired reset token" });
+
+    const hash = await bcrypt.hash(password, 10);
+    await db.collection("users").updateOne(
+      { _id: user._id },
+      {
+        $set: { password: hash },
+        $unset: {
+          passwordResetTokenHash: "",
+          passwordResetExpiresAt: "",
+        },
+      }
+    );
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Could not reset password" });
+  }
+});
+
 app.post("/api/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = normalizeEmail(req.body.email);
+    const { password } = req.body;
     const user = await db.collection("users").findOne({ email });
     if (!user) return res.status(400).json({ error: "Invalid credentials" });
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ error: "Invalid credentials" });
+    if (user.emailVerified === false) {
+      return res.status(403).json({ error: "Email not verified" });
+    }
     const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ token });
   } catch (err) {

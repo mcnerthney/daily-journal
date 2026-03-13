@@ -84,6 +84,18 @@ Add these three secrets:
 | `GCP_PROJECT_ID`| Your GCP project ID (e.g. `my-journal-12345`) |
 | `GCP_SA_KEY`    | The entire contents of `github-sa-key.json`   |
 | `API_URL`       | Your Cloud Run API URL (e.g. `https://journal-api-xxxx-uc.a.run.app`) |
+| `SMTP_HOST`     | SMTP server hostname (e.g. `smtp.sendgrid.net`) |
+| `SMTP_PORT`     | SMTP port (e.g. `587`)                         |
+| `SMTP_SECURE`   | `true` for port 465 TLS, otherwise `false`     |
+| `SMTP_USER`     | SMTP login username / API key name             |
+| `EMAIL_FROM`    | Sender address (e.g. `no-reply@yourdomain.com`) |
+
+The SMTP password is stored in **GCP Secret Manager** (not GitHub secrets).
+Create it once:
+```bash
+echo -n "your-smtp-password" | \
+  gcloud secrets create journal-smtp-pass --data-file=- --project=$PROJECT_ID
+```
 
 To find your API URL if already deployed:
 ```bash
