@@ -93,6 +93,7 @@ async function doConfirmPasswordReset(token, password) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
+  const defaultTitle = "Daily Journal";
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
@@ -131,6 +132,15 @@ export default function App() {
         .catch(() => setPublicList(null));
     }
   }, [isUuid]);
+
+  useEffect(() => {
+    if (!publicListKey) {
+      document.title = defaultTitle;
+      return;
+    }
+
+    document.title = publicList?.name || "Public List";
+  }, [defaultTitle, publicList, publicListKey]);
 
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
