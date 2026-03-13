@@ -85,7 +85,7 @@ async function sendPasswordResetEmail(email, rawToken) {
   const resetUrl = buildClientUrl("resetToken", rawToken);
   return sendEmail({
     to: email,
-    subject: "Reset your Daily Journal password",
+    subject: "Reset your Notebook password",
     text: `You can reset your password by opening this link: ${resetUrl}`,
     html: `<p>You requested a password reset.</p><p>Reset it by clicking <a href="${resetUrl}">this link</a>.</p>`,
   });

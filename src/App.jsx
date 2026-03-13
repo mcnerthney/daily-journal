@@ -93,7 +93,7 @@ async function doConfirmPasswordReset(token, password) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const defaultTitle = "Daily Journal";
+  const defaultTitle = "Notebook";
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
@@ -592,7 +592,7 @@ export default function App() {
                   </button>
                 )}
                 <h1 style={{ margin: 0, fontSize: "22px", fontFamily: "'Playfair Display', serif", fontWeight: 700, background: "linear-gradient(135deg,#c9b8ff,#f0acd4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  {featureTitle || "Daily Journal"}
+                  {featureTitle || "Notebook"}
                 </h1>
                 <LivePill connected={connected} viewers={viewers} />
                 <SaveIndicator status={saveStatus} />
