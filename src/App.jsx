@@ -419,7 +419,7 @@ export default function App() {
         ) : (
           <div style={{ textAlign: "center", marginTop: "80px", color: "#555" }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>📋</div>
-            <div>List not found.</div>
+            <div>Fetching List...</div>
           </div>
         )}
       </div>
