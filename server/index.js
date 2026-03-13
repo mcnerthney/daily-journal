@@ -74,10 +74,10 @@ io.on("connection", (socket) => {
     io.to(socket.userId).emit("presence", { count: userClients[socket.userId] });
   }
 
-  // public list guests subscribe to a room keyed by publicId
-  socket.on("public-list:subscribe", ({ publicId }) => {
-    if (!publicId) return;
-    socket.join(`public-list:${publicId}`);
+  // public list guests subscribe to rooms keyed by public id and/or slug
+  socket.on("public-list:subscribe", ({ publicId, publicSlug }) => {
+    if (publicId) socket.join(`public-list:id:${publicId}`);
+    if (publicSlug) socket.join(`public-list:slug:${publicSlug}`);
   });
 
   socket.on("disconnect", () => {
@@ -109,6 +109,7 @@ async function connectDB() {
   await db.collection("lists").createIndex({ sharedWith: 1 });
   // unique id for public access
   await db.collection("lists").createIndex({ publicId: 1 }, { unique: true, sparse: true });
+  await db.collection("lists").createIndex({ publicSlug: 1 }, { unique: true, sparse: true });
 
   console.log(`✅ Connected to MongoDB at ${MONGO_URI}`);
 }
@@ -119,6 +120,31 @@ function entries() {
 
 function lists() {
   return db.collection("lists");
+}
+
+function slugifyListName(name = "") {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "list";
+}
+
+async function generateUniquePublicSlug(name, excludeId = null) {
+  const base = slugifyListName(name);
+  let candidate = base;
+  let i = 2;
+
+  while (true) {
+    const existing = await lists().findOne({ publicSlug: candidate });
+    if (!existing || (excludeId && existing._id.toString() === excludeId.toString())) {
+      return candidate;
+    }
+    candidate = `${base}-${i}`;
+    i += 1;
+  }
 }
 
 // ── Health check ─────────────────────────────────────────────────────────────
@@ -217,17 +243,28 @@ app.post("/api/lists", auth, async (req, res) => {
     const sharedWith = await resolveEmails(shareWithEmails);
     const doc = { name, owner, items, sharedWith, shareWithEmails };
     if (isPublic) {
-      // generate a random publicId if none supplied
       doc.public = true;
       doc.publicId = crypto.randomUUID();
+      doc.publicSlug = await generateUniquePublicSlug(name);
     }
     const result = await lists().insertOne(doc);
     const saved = { ...doc, _id: result.insertedId };
     io.to(owner).emit("list:updated", saved);
     if (saved.public && saved.publicId) {
-      io.to(`public-list:${saved.publicId}`).emit("public-list:updated", {
+      io.to(`public-list:id:${saved.publicId}`).emit("public-list:updated", {
         list: {
           publicId: saved.publicId,
+          publicSlug: saved.publicSlug,
+          name: saved.name,
+          items: saved.items || [],
+        },
+      });
+    }
+    if (saved.public && saved.publicSlug) {
+      io.to(`public-list:slug:${saved.publicSlug}`).emit("public-list:updated", {
+        list: {
+          publicId: saved.publicId,
+          publicSlug: saved.publicSlug,
           name: saved.name,
           items: saved.items || [],
         },
@@ -274,11 +311,20 @@ app.put("/api/lists/:id", auth, async (req, res) => {
     if (isPublic !== undefined) {
       update.public = isPublic;
       if (isPublic && !existing.publicId) update.publicId = crypto.randomUUID();
+      if (isPublic && !existing.publicSlug) {
+        const slugSource = name !== undefined ? name : existing.name;
+        update.publicSlug = await generateUniquePublicSlug(slugSource, existing._id);
+      }
       if (!isPublic) {
         update.publicId = null;
+        update.publicSlug = null;
       }
     }
+    if (name !== undefined && (isPublic === true || (isPublic === undefined && existing.public))) {
+      update.publicSlug = await generateUniquePublicSlug(name, existing._id);
+    }
     const previousPublicId = existing.publicId;
+    const previousPublicSlug = existing.publicSlug;
     const previousWasPublic = !!existing.public;
 
     await lists().updateOne(filter, { $set: update });
@@ -287,20 +333,44 @@ app.put("/api/lists/:id", auth, async (req, res) => {
     recipients.forEach(u => io.to(u).emit("list:updated", newDoc));
 
     if (newDoc.public && newDoc.publicId) {
-      io.to(`public-list:${newDoc.publicId}`).emit("public-list:updated", {
+      io.to(`public-list:id:${newDoc.publicId}`).emit("public-list:updated", {
         list: {
           publicId: newDoc.publicId,
+          publicSlug: newDoc.publicSlug,
+          name: newDoc.name,
+          items: newDoc.items || [],
+        },
+      });
+    }
+    if (newDoc.public && newDoc.publicSlug) {
+      io.to(`public-list:slug:${newDoc.publicSlug}`).emit("public-list:updated", {
+        list: {
+          publicId: newDoc.publicId,
+          publicSlug: newDoc.publicSlug,
           name: newDoc.name,
           items: newDoc.items || [],
         },
       });
     }
 
-    // if publicId changed, notify old subscribers too
+    // if public id changed, notify old subscribers too
     if (previousWasPublic && previousPublicId && previousPublicId !== newDoc.publicId) {
-      io.to(`public-list:${previousPublicId}`).emit("public-list:updated", {
+      io.to(`public-list:id:${previousPublicId}`).emit("public-list:updated", {
         list: {
           publicId: previousPublicId,
+          publicSlug: previousPublicSlug,
+          name: newDoc.name,
+          items: newDoc.items || [],
+        },
+      });
+    }
+
+    // if public slug changed, notify old slug subscribers too
+    if (previousWasPublic && previousPublicSlug && previousPublicSlug !== newDoc.publicSlug) {
+      io.to(`public-list:slug:${previousPublicSlug}`).emit("public-list:updated", {
+        list: {
+          publicId: previousPublicId,
+          publicSlug: previousPublicSlug,
           name: newDoc.name,
           items: newDoc.items || [],
         },
@@ -326,9 +396,21 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     const recipients = [existing.owner, ...(existing.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
     if (existing.public && existing.publicId) {
-      io.to(`public-list:${existing.publicId}`).emit("public-list:updated", {
+      io.to(`public-list:id:${existing.publicId}`).emit("public-list:updated", {
         list: {
           publicId: existing.publicId,
+          publicSlug: existing.publicSlug,
+          name: existing.name,
+          items: [],
+          deleted: true,
+        },
+      });
+    }
+    if (existing.public && existing.publicSlug) {
+      io.to(`public-list:slug:${existing.publicSlug}`).emit("public-list:updated", {
+        list: {
+          publicId: existing.publicId,
+          publicSlug: existing.publicSlug,
           name: existing.name,
           items: [],
           deleted: true,
@@ -343,9 +425,14 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
 });
 
 // public read-only access, no auth required
-app.get("/api/public/:publicId", async (req, res) => {
+app.get("/api/public/:publicKey", async (req, res) => {
   try {
-    const doc = await lists().findOne({ publicId: req.params.publicId, public: true });
+    const key = req.params.publicKey;
+    let doc = await lists().findOne({ publicSlug: key, public: true });
+    // backwards compatibility for old links that used UUID publicId
+    if (!doc) {
+      doc = await lists().findOne({ publicId: key, public: true });
+    }
     if (!doc) return res.status(404).json({ error: "Not found" });
     const { _id, owner, sharedWith, shareWithEmails, ...data } = doc;
     res.json(data);

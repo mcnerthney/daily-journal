@@ -85,8 +85,8 @@ export async function deleteList(id, headers = {}) {
     return res.json();
 }
 
-export async function fetchPublicList(publicId) {
-    const res = await fetch(`${API}/public/${publicId}`);
+export async function fetchPublicList(publicKey) {
+    const res = await fetch(`${API}/public/${encodeURIComponent(publicKey)}`);
     if (!res.ok) {
         const err = new Error("fetch failed");
         if (res.status === 404) err.code = 404;

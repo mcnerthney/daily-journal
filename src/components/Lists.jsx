@@ -255,9 +255,18 @@ export default function Lists({ token, socket }) {
                                         />{' '}
                                         Make public (guest view)
                                     </label>
-                                    {selected.public && selected.publicId && (
-                                        <div style={{ marginTop: "4px", fontSize: "12px" }}>
-                                            URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
+                                    {selected.public && (selected.publicSlug || selected.publicId) && (
+                                        <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
+                                            {selected.publicSlug && (
+                                                <div>
+                                                    Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
+                                                </div>
+                                            )}
+                                            {selected.publicId && (
+                                                <div>
+                                                    UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

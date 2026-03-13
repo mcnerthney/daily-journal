@@ -65,8 +65,11 @@ export default function App() {
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
+  const [publicListKey, setPublicListKey] = useState(null);
   const [publicListId, setPublicListId] = useState(null);
   const [publicList, setPublicList] = useState(null);
+
+  const isUuid = useCallback((v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v), []);
 
   // derive feature metadata from the list
   const currentFeature = FEATURES.find(f => f.key === appView);
@@ -78,15 +81,24 @@ export default function App() {
 
   // --- handle public list routes ------------------------------------------------
   useEffect(() => {
-    const match = window.location.pathname.match(/^\/lists\/public\/([^\/]+)/);
+    const match = window.location.pathname.match(/^\/lists\/public\/([^\/]+)(?:\/([^\/]+))?$/);
     if (match) {
-      const id = match[1];
-      setPublicListId(id);
-      fetchPublicList(id)
-        .then(setPublicList)
+      const primary = decodeURIComponent(match[1]);
+      const optionalSlug = match[2] ? decodeURIComponent(match[2]) : null;
+      const hasUuidPrimary = isUuid(primary);
+      const fetchKey = optionalSlug || primary;
+
+      setPublicListKey(fetchKey);
+      if (hasUuidPrimary) setPublicListId(primary);
+
+      fetchPublicList(fetchKey)
+        .then((list) => {
+          setPublicList(list);
+          setPublicListId(list.publicId || null);
+        })
         .catch(() => setPublicList(null));
     }
-  }, []);
+  }, [isUuid]);
 
   // --- sync appView with URL hash ------------------------------------------------
   // when component mounts or hash changes, update state if it matches a feature
@@ -177,7 +189,7 @@ export default function App() {
   // ── Socket.io connection ────────────────────────────────────────────────────
   useEffect(() => {
     // connect if we have a token or we're looking at a public list
-    if (!token && !publicListId) return;
+    if (!token && !publicListKey) return;
 
     const socket = io({
       transports: ["websocket", "polling"],
@@ -188,8 +200,11 @@ export default function App() {
     socket.on("connect", () => setConnected(true));
     socket.on("disconnect", () => setConnected(false));
 
-    if (publicListId) {
-      const subscribe = () => socket.emit("public-list:subscribe", { publicId: publicListId });
+    if (publicListKey) {
+      const subscribe = () => socket.emit("public-list:subscribe", {
+        publicId: publicListId || undefined,
+        publicSlug: publicListKey,
+      });
       socket.on("connect", subscribe);
       if (socket.connected) subscribe();
     }
@@ -217,9 +232,9 @@ export default function App() {
       if (date !== today) showToast(`🗑 Entry for ${formatDate(date)} was deleted`);
     });
 
-    if (publicListId) {
+    if (publicListKey) {
       socket.on("public-list:updated", ({ list }) => {
-        if (list && list.publicId === publicListId) {
+        if (list && (list.publicSlug === publicListKey || (publicListId && list.publicId === publicListId))) {
           if (list.deleted) {
             setPublicList(null);
             showToast("Public list was deleted");
@@ -232,7 +247,7 @@ export default function App() {
     }
 
     return () => socket.disconnect();
-  }, [today, showToast, token, publicListId]);
+  }, [today, showToast, token, publicListId, publicListKey]);
 
   // ── Load all entries on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -322,7 +337,7 @@ export default function App() {
   };
 
   // if we're viewing a public list, render it and nothing else
-  if (publicListId) {
+  if (publicListKey) {
     return (
       <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px" }}>
         {publicList ? (
