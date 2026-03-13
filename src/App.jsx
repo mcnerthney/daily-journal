@@ -447,8 +447,7 @@ export default function App() {
           </div>
         ) : (
           <div style={{ textAlign: "center", marginTop: "80px", color: "#555" }}>
-            <div style={{ fontSize: "32px", marginBottom: "12px" }}>📋</div>
-            <div>Fetching List...</div>
+            <div style={{ fontSize: "32px", marginBottom: "12px" }}>⏳</div>
           </div>
         )}
       </div>
