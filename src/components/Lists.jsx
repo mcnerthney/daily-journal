@@ -64,6 +64,13 @@ export default function Lists({ token, socket }) {
         setShareInput("");
     };
 
+    const backToLists = () => {
+        setSelectedId(null);
+        setNewItem("");
+        setShareInput("");
+        setError("");
+    };
+
     const applyListUpdate = (updated) => {
         setLists((prev) => prev.map((list) => (list._id === updated._id ? updated : list)));
     };
@@ -181,201 +188,222 @@ export default function Lists({ token, socket }) {
     const me = decodeToken(token).userId;
     const isOwner = selected.owner === me;
 
-    return (
-        <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", color: "#c9b8ff" }}>Lists</h2>
-            <div style={{ display: "flex", gap: "24px" }}>
-                <div style={{ flex: 1, maxWidth: "220px" }}>
-                    <h3>Your lists</h3>
-                    <ul style={{ padding: 0, listStyle: "none" }}>
-                        {lists.map(l => (
-                            <li key={l._id} style={{ marginBottom: "6px" }}>
-                                <button onClick={() => selectList(l._id)} style={{ background: selectedId === l._id ? "#6d5acd22" : "transparent", border: "none", color: "#c9b8ff", cursor: "pointer" }}>
-                                    {l.name}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                    <div style={{ marginTop: "16px" }}>
-                        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "6px" }} />
-                        <div style={{ marginTop: "8px", fontSize: "14px" }}>
-                            <label>
+    if (selectedId) {
+        return (
+            <div style={{ minHeight: "calc(100vh - 180px)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", gap: "12px", flexWrap: "wrap" }}>
+                    <button
+                        onClick={backToLists}
+                        style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                    >
+                        ← Back to lists
+                    </button>
+                    {isOwner && (
+                        <button onClick={deleteCurrent} style={{ color: "#ef4444" }}>Delete list</button>
+                    )}
+                </div>
+
+                <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
+                    <input
+                        value={selected.name || ""}
+                        onChange={e => changeName(e.target.value)}
+                        disabled={!isOwner}
+                        style={{
+                            ...inputStyle,
+                            fontSize: "22px",
+                            padding: "10px 12px",
+                            opacity: isOwner ? 1 : 0.7,
+                            background: isOwner ? inputStyle.background : "#1a1a23",
+                        }}
+                    />
+                    {selected.ownerEmail && (
+                        <div style={{ fontSize: "12px", color: "#888" }}>
+                            Owner: {selected.ownerEmail}
+                        </div>
+                    )}
+                    {isOwner && (
+                        <div>
+                            <label style={{ fontSize: "14px" }}>
                                 <input
                                     type="checkbox"
-                                    checked={newNamePublic || false}
-                                    onChange={e => setNewNamePublic(e.target.checked)}
-                                />{' '}
-                                Public
-                            </label>
-                        </div>
-                        <button onClick={saveNewList} style={{ marginTop: "8px", width: "100%" }}>Create</button>
-                    </div>
-                </div>
-                <div style={{ flex: 3 }}>
-                    {selectedId && (
-                        <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                                <input
-                                    value={selected.name}
-                                    onChange={e => changeName(e.target.value)}
-                                    disabled={!isOwner}
-                                    style={{
-                                        ...inputStyle,
-                                        fontSize: "18px",
-                                        padding: "6px 8px",
-                                        opacity: isOwner ? 1 : 0.7,
-                                        background: isOwner ? inputStyle.background : "#1a1a23",
+                                    checked={!!selected.public}
+                                    onChange={async () => {
+                                        try {
+                                            const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
+                                            applyListUpdate(updated);
+                                            setError("");
+                                        } catch (e) {
+                                            console.error(e);
+                                            setError("Unable to update public flag");
+                                        }
                                     }}
-                                />
-                                {isOwner && (
-                                    <button onClick={deleteCurrent} style={{ color: "#ef4444" }}>Delete</button>
-                                )}
-                            </div>
-                            {selected.ownerEmail && (
-                                <div style={{ fontSize: "12px", color: "#888", marginBottom: "8px" }}>
-                                    Owner: {selected.ownerEmail}
-                                </div>
-                            )}
-                            {isOwner && (
-                                <div style={{ marginTop: "8px" }}>
-                                    <label style={{ fontSize: "14px" }}>
-                                        <input
-                                            type="checkbox"
-                                            checked={!!selected.public}
-                                            onChange={async () => {
-                                                try {
-                                                    const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
-                                                    applyListUpdate(updated);
-                                                    setError("");
-                                                } catch (e) {
-                                                    console.error(e);
-                                                    setError("Unable to update public flag");
-                                                }
-                                            }}
-                                        />{' '}
-                                        Make public (guest view)
-                                    </label>
-                                    {selected.public && (selected.publicSlug || selected.publicId) && (
-                                        <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
-                                            {selected.publicSlug && (
-                                                <div>
-                                                    Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
-                                                </div>
-                                            )}
-                                            {selected.publicId && (
-                                                <div>
-                                                    UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
-                                                </div>
-                                            )}
+                                />{' '}
+                                Make public (guest view)
+                            </label>
+                            {selected.public && (selected.publicSlug || selected.publicId) && (
+                                <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
+                                    {selected.publicSlug && (
+                                        <div>
+                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
                                         </div>
                                     )}
-                                </div>
-                            )}
-                            <h4>Items</h4>
-                            <ul style={{ padding: 0, listStyle: "none" }}>
-                                {(selected.items || []).map((it, idx) => (
-                                    <li
-                                        key={`${selectedId}-${idx}-${it.text}`}
-                                        draggable
-                                        onDragStart={() => { dragIndex.current = idx; }}
-                                        onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
-                                        onDrop={async () => {
-                                            if (dragIndex.current === null || dragIndex.current === idx) {
-                                                setDragOverIndex(null);
-                                                dragIndex.current = null;
-                                                return;
-                                            }
-                                            const list = lists.find((l) => l._id === selectedId);
-                                            const items = [...(list?.items || [])];
-                                            const [moved] = items.splice(dragIndex.current, 1);
-                                            items.splice(idx, 0, moved);
-                                            setDragOverIndex(null);
-                                            dragIndex.current = null;
-                                            await saveItems(items, "Unable to reorder items");
-                                        }}
-                                        onDragEnd={() => { setDragOverIndex(null); setTrashOver(false); dragIndex.current = null; }}
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: "8px",
-                                            marginBottom: "8px",
-                                            borderTop: dragOverIndex === idx ? "2px solid #6d5acd" : "2px solid transparent",
-                                        }}
-                                    >
-                                        <span
-                                            style={{ cursor: "grab", color: "#555", userSelect: "none", fontSize: "18px", lineHeight: 1 }}
-                                            title="Drag to reorder"
-                                        >
-                                            ⠿
-                                        </span>
-                                        <input type="checkbox" checked={it.done} onChange={() => toggleItem(idx)} />
-                                        <input
-                                            defaultValue={it.text}
-                                            onBlur={(e) => renameItem(idx, e.target.value)}
-                                            onKeyDown={(e) => {
-                                                if (e.key === "Enter") e.currentTarget.blur();
-                                            }}
-                                            style={{
-                                                ...inputStyle,
-                                                flex: 1,
-                                                padding: "6px",
-                                                color: it.done ? "#888" : "#e8e8f0",
-                                                textDecoration: it.done ? "line-through" : "none",
-                                            }}
-                                        />
-                                    </li>
-                                ))}
-                            </ul>
-                            <div
-                                onDragOver={(e) => { e.preventDefault(); setTrashOver(true); }}
-                                onDragLeave={() => setTrashOver(false)}
-                                onDrop={async () => {
-                                    setTrashOver(false);
-                                    if (dragIndex.current !== null) {
-                                        const idx = dragIndex.current;
-                                        dragIndex.current = null;
-                                        await deleteItem(idx);
-                                    }
-                                }}
-                                title="Drop here to delete"
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    width: "36px",
-                                    height: "36px",
-                                    borderRadius: "6px",
-                                    border: `2px dashed ${trashOver ? "#ef4444" : "#555"}`,
-                                    background: trashOver ? "#ef444422" : "transparent",
-                                    fontSize: "18px",
-                                    marginBottom: "8px",
-                                    transition: "all 0.15s",
-                                    cursor: "default",
-                                }}
-                            >
-                                🗑️
-                            </div>
-                            <div style={{ marginTop: "8px" }}>
-                                <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, width: "70%", padding: "6px" }} />
-                                <button onClick={addItem} style={{ marginLeft: "8px" }}>Add</button>
-                            </div>
-                            {isOwner && (
-                                <>
-                                    <h4>Share with</h4>
-                                    <div>
-                                        <input value={shareInput} onChange={e => setShareInput(e.target.value)} placeholder="comma-separated emails" style={{ ...inputStyle, width: "100%", padding: "6px" }} />
-                                        <button onClick={saveShares} style={{ marginTop: "4px" }}>Save</button>
-                                    </div>
-                                </>
-                            )}
-                            {selected.shareWithEmails && selected.shareWithEmails.length > 0 && (
-                                <div style={{ marginTop: "8px", fontSize: "12px", color: "#888" }}>
-                                    Shared: {selected.shareWithEmails.join(", ")}
+                                    {selected.publicId && (
+                                        <div>
+                                            UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
+
+                <h4>Items</h4>
+                <ul style={{ padding: 0, listStyle: "none" }}>
+                    {(selected.items || []).map((it, idx) => (
+                        <li
+                            key={`${selectedId}-${idx}-${it.text}`}
+                            draggable
+                            onDragStart={() => { dragIndex.current = idx; }}
+                            onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
+                            onDrop={async () => {
+                                if (dragIndex.current === null || dragIndex.current === idx) {
+                                    setDragOverIndex(null);
+                                    dragIndex.current = null;
+                                    return;
+                                }
+                                const list = lists.find((l) => l._id === selectedId);
+                                const items = [...(list?.items || [])];
+                                const [moved] = items.splice(dragIndex.current, 1);
+                                items.splice(idx, 0, moved);
+                                setDragOverIndex(null);
+                                dragIndex.current = null;
+                                await saveItems(items, "Unable to reorder items");
+                            }}
+                            onDragEnd={() => { setDragOverIndex(null); setTrashOver(false); dragIndex.current = null; }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                marginBottom: "8px",
+                                borderTop: dragOverIndex === idx ? "2px solid #6d5acd" : "2px solid transparent",
+                            }}
+                        >
+                            <span
+                                style={{ cursor: "grab", color: "#555", userSelect: "none", fontSize: "18px", lineHeight: 1 }}
+                                title="Drag to reorder"
+                            >
+                                ⠿
+                            </span>
+                            <input type="checkbox" checked={it.done} onChange={() => toggleItem(idx)} />
+                            <input
+                                defaultValue={it.text}
+                                onBlur={(e) => renameItem(idx, e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") e.currentTarget.blur();
+                                }}
+                                style={{
+                                    ...inputStyle,
+                                    flex: 1,
+                                    padding: "6px",
+                                    color: it.done ? "#888" : "#e8e8f0",
+                                    textDecoration: it.done ? "line-through" : "none",
+                                }}
+                            />
+                        </li>
+                    ))}
+                </ul>
+                <div
+                    onDragOver={(e) => { e.preventDefault(); setTrashOver(true); }}
+                    onDragLeave={() => setTrashOver(false)}
+                    onDrop={async () => {
+                        setTrashOver(false);
+                        if (dragIndex.current !== null) {
+                            const idx = dragIndex.current;
+                            dragIndex.current = null;
+                            await deleteItem(idx);
+                        }
+                    }}
+                    title="Drop here to delete"
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "36px",
+                        height: "36px",
+                        borderRadius: "6px",
+                        border: `2px dashed ${trashOver ? "#ef4444" : "#555"}`,
+                        background: trashOver ? "#ef444422" : "transparent",
+                        fontSize: "18px",
+                        marginBottom: "8px",
+                        transition: "all 0.15s",
+                        cursor: "default",
+                    }}
+                >
+                    🗑️
+                </div>
+                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }} />
+                    <button onClick={addItem}>Add</button>
+                </div>
+                {isOwner && (
+                    <>
+                        <h4>Share with</h4>
+                        <div>
+                            <input value={shareInput} onChange={e => setShareInput(e.target.value)} placeholder="comma-separated emails" style={{ ...inputStyle, width: "100%", padding: "6px" }} />
+                            <button onClick={saveShares} style={{ marginTop: "4px" }}>Save</button>
+                        </div>
+                    </>
+                )}
+                {selected.shareWithEmails && selected.shareWithEmails.length > 0 && (
+                    <div style={{ marginTop: "8px", fontSize: "12px", color: "#888" }}>
+                        Shared: {selected.shareWithEmails.join(", ")}
+                    </div>
+                )}
+                {error && <div style={{ color: "#ef4444", marginTop: "12px" }}>{error}</div>}
+            </div>
+        );
+    }
+
+    return (
+        <div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", color: "#c9b8ff" }}>Lists</h2>
+            <h3>Your lists</h3>
+            <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
+                {lists.map(l => (
+                    <li key={l._id}>
+                        <button
+                            onClick={() => selectList(l._id)}
+                            style={{
+                                width: "100%",
+                                textAlign: "left",
+                                background: "#12121a",
+                                border: "1px solid #2a2a3a",
+                                borderRadius: "10px",
+                                color: "#c9b8ff",
+                                cursor: "pointer",
+                                padding: "12px",
+                                fontSize: "14px",
+                            }}
+                        >
+                            {l.name}
+                        </button>
+                    </li>
+                ))}
+            </ul>
+            <div style={{ marginTop: "20px", maxWidth: "420px" }}>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "8px" }} />
+                <div style={{ marginTop: "8px", fontSize: "14px" }}>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={newNamePublic || false}
+                            onChange={e => setNewNamePublic(e.target.checked)}
+                        />{' '}
+                        Public
+                    </label>
+                </div>
+                <button onClick={saveNewList} style={{ marginTop: "8px" }}>Create</button>
             </div>
             {error && <div style={{ color: "#ef4444", marginTop: "12px" }}>{error}</div>}
         </div>
