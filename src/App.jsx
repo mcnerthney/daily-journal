@@ -404,7 +404,7 @@ export default function App() {
       <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px" }}>
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
-            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px" }}>{publicList.name}</h1>
+            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", padding: "40px" }}>{publicList.name}</h1>
             <ul style={{ listStyle: "none", padding: 0 }}>
               {visiblePublicItems.map((it, idx) => (
                 <li key={idx} style={{ marginBottom: "6px" }}>
