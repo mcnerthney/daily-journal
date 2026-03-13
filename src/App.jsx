@@ -65,32 +65,6 @@ async function doRegister(email, password) {
   return res.json();
 }
 
-async function doVerifyEmail(token) {
-  const res = await fetch(`${API}/verify-email`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Email verification failed");
-  }
-  return res.json();
-}
-
-async function doResendVerification(email) {
-  const res = await fetch(`${API}/verify-email/request`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Could not resend verification email");
-  }
-  return res.json();
-}
-
 async function doRequestPasswordReset(email) {
   const res = await fetch(`${API}/password-reset/request`, {
     method: "POST",
@@ -225,7 +199,6 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login"); // or register
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
-  const [pendingEmail, setPendingEmail] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [viewers, setViewers] = useState(1);
   const [toast, setToast] = useState({ message: "", visible: false });
@@ -249,27 +222,12 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const verifyToken = params.get("verifyToken");
     const incomingResetToken = params.get("resetToken");
 
-    if (!verifyToken && !incomingResetToken) return;
+    if (!incomingResetToken) return;
 
     const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
     window.history.replaceState(null, "", cleanUrl);
-
-    if (verifyToken) {
-      doVerifyEmail(verifyToken)
-        .then(() => {
-          setAuthMode("login");
-          setAuthMessage("Email verified. You can sign in now.");
-          setAuthError("");
-        })
-        .catch((err) => {
-          setAuthError(err.message || "Verification link is invalid or expired");
-          setAuthMessage("");
-          setAuthMode("login");
-        });
-    }
 
     if (incomingResetToken) {
       setResetToken(incomingResetToken);
@@ -484,9 +442,8 @@ export default function App() {
                     setToken(token);
                   } else if (authMode === "register") {
                     await doRegister(email, password);
-                    setPendingEmail(email);
                     setAuthMode("login");
-                    setAuthMessage("Account created. Check your email to verify before signing in.");
+                    setAuthMessage("Account created. You can sign in now.");
                   } else if (authMode === "forgot") {
                     await doRequestPasswordReset(email);
                     setAuthMode("login");
@@ -500,9 +457,6 @@ export default function App() {
                     setAuthMessage("Password updated. Sign in with your new password.");
                   }
                 } catch (e) {
-                  if (email && /not verified/i.test(e.message || "")) {
-                    setPendingEmail(email);
-                  }
                   setAuthError(e.message);
                 }
               }}
@@ -534,25 +488,6 @@ export default function App() {
                 </button>
               )}
             </div>
-            {authMode === "login" && pendingEmail && (
-              <div style={{ marginTop: 8, textAlign: "center" }}>
-                <button
-                  onClick={async () => {
-                    setAuthError("");
-                    setAuthMessage("");
-                    try {
-                      await doResendVerification(pendingEmail);
-                      setAuthMessage("Verification email sent again.");
-                    } catch (err) {
-                      setAuthError(err.message || "Could not resend verification email");
-                    }
-                  }}
-                  style={{ background: "none", border: "none", color: "#fcd34d", cursor: "pointer", fontSize: 13 }}
-                >
-                  Resend verification email
-                </button>
-              </div>
-            )}
             {authError && <div style={{ color: "#ef4444", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authError}</div>}
             {authMessage && <div style={{ color: "#4ade80", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authMessage}</div>}
           </div>

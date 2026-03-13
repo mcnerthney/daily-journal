@@ -33,8 +33,6 @@ The journal now supports per-user auth; all `/api/entries` routes require a **Be
 | Method | Path                  | Description              |
 |--------|-----------------------|--------------------------|
 | POST   | /api/register         | Create a new user (email/password) |
-| POST   | /api/verify-email     | Verify a registration token |
-| POST   | /api/verify-email/request | Resend verification email |
 | POST   | /api/login            | Obtain JWT token by credentials |
 | POST   | /api/password-reset/request | Request password reset email |
 | POST   | /api/password-reset/confirm | Reset password with token |
@@ -61,7 +59,7 @@ For authenticated endpoints include `Authorization: Bearer <token>` header.
 
 ## Email Configuration
 
-To enable real emails for verification and password reset, set these server environment variables:
+To enable real emails for password reset, set these server environment variables:
 
 - `APP_BASE_URL` (example `http://localhost:3000`)
 - `EMAIL_FROM`

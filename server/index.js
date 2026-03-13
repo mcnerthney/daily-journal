@@ -17,7 +17,6 @@ const DB_NAME = "daily_journal";
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-change-me";
 const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:3000";
 const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@daily-journal.local";
-const EMAIL_VERIFICATION_TTL_MINUTES = Number(process.env.EMAIL_VERIFICATION_TTL_MINUTES || 60 * 24);
 const PASSWORD_RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30);
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
@@ -80,16 +79,6 @@ async function sendEmail({ to, subject, text, html }) {
     html,
   });
   return { delivered: true, preview: false };
-}
-
-async function sendVerificationEmail(email, rawToken) {
-  const verifyUrl = buildClientUrl("verifyToken", rawToken);
-  return sendEmail({
-    to: email,
-    subject: "Verify your Daily Journal email",
-    text: `Welcome to Daily Journal. Verify your email by opening this link: ${verifyUrl}`,
-    html: `<p>Welcome to Daily Journal.</p><p>Verify your email by clicking <a href="${verifyUrl}">this link</a>.</p>`,
-  });
 }
 
 async function sendPasswordResetEmail(email, rawToken) {
@@ -245,82 +234,17 @@ app.post("/api/register", async (req, res) => {
     const existing = await db.collection("users").findOne({ email });
     if (existing) return res.status(400).json({ error: "User already exists" });
 
-    const verificationToken = generateRawToken();
-    const verificationTokenHash = hashToken(verificationToken);
     const hash = await bcrypt.hash(password, 10);
     await db.collection("users").insertOne({
       email,
       password: hash,
-      emailVerified: false,
-      emailVerificationTokenHash: verificationTokenHash,
-      emailVerificationExpiresAt: tokenExpiryDate(EMAIL_VERIFICATION_TTL_MINUTES),
       createdAt: new Date(),
     });
 
-    await sendVerificationEmail(email, verificationToken);
-    res.json({ ok: true, requiresEmailVerification: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Registration failed" });
-  }
-});
-
-app.post("/api/verify-email/request", async (req, res) => {
-  try {
-    const email = normalizeEmail(req.body.email);
-    if (!email) return res.status(400).json({ error: "Missing email" });
-
-    const user = await db.collection("users").findOne({ email });
-    if (!user || user.emailVerified) {
-      return res.json({ ok: true });
-    }
-
-    const verificationToken = generateRawToken();
-    await db.collection("users").updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          emailVerificationTokenHash: hashToken(verificationToken),
-          emailVerificationExpiresAt: tokenExpiryDate(EMAIL_VERIFICATION_TTL_MINUTES),
-        },
-      }
-    );
-
-    await sendVerificationEmail(user.email, verificationToken);
     return res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Could not resend verification email" });
-  }
-});
-
-app.post("/api/verify-email", async (req, res) => {
-  try {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ error: "Missing token" });
-
-    const user = await db.collection("users").findOne({
-      emailVerificationTokenHash: hashToken(token),
-      emailVerificationExpiresAt: { $gt: new Date() },
-    });
-
-    if (!user) return res.status(400).json({ error: "Invalid or expired verification token" });
-
-    await db.collection("users").updateOne(
-      { _id: user._id },
-      {
-        $set: { emailVerified: true },
-        $unset: {
-          emailVerificationTokenHash: "",
-          emailVerificationExpiresAt: "",
-        },
-      }
-    );
-
-    return res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Email verification failed" });
+    return res.status(500).json({ error: "Registration failed" });
   }
 });
 
@@ -390,9 +314,6 @@ app.post("/api/login", async (req, res) => {
     if (!user) return res.status(400).json({ error: "Invalid credentials" });
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ error: "Invalid credentials" });
-    if (user.emailVerified === false) {
-      return res.status(403).json({ error: "Email not verified" });
-    }
     const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ token });
   } catch (err) {
