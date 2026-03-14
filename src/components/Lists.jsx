@@ -263,50 +263,13 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             Owner: {selected.ownerEmail}
                         </div>
                     )}
-                    {isOwner && (
-                        <div>
-                            <label style={{ fontSize: "14px" }}>
-                                <input
-                                    type="checkbox"
-                                    checked={!!selected.public}
-                                    onChange={async () => {
-                                        try {
-                                            const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
-                                            applyListUpdate(updated);
-                                            setError("");
-                                        } catch (e) {
-                                            console.error(e);
-                                            setError("Unable to update public flag");
-                                        }
-                                    }}
-                                />{' '}
-                                Make public (guest view)
-                            </label>
-                            {selected.public && (selected.publicSlug || selected.publicId) && (
-                                <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
-                                    <div>
-                                        Public views: {selected.publicViewCount || 0}
-                                    </div>
-                                    <div>
-                                        Last viewed: {publicLastViewedAtLabel}
-                                    </div>
-                                    {selected.publicSlug && (
-                                        <div>
-                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
-                                        </div>
-                                    )}
-                                    {selected.publicId && (
-                                        <div>
-                                            UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
 
                 <h4>Items</h4>
+                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }} />
+                    <button onClick={addItem}>Add</button>
+                </div>
                 <ul style={{ padding: 0, listStyle: "none" }}>
                     {(selected.items || []).map((it, idx) => (
                         <li
@@ -390,22 +353,45 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                 >
                     🗑️
                 </div>
-                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                    <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }} />
-                    <button onClick={addItem}>Add</button>
-                </div>
                 {isOwner && (
-                    <>
-                        <h4>Share with</h4>
-                        <div>
-                            <input value={shareInput} onChange={e => setShareInput(e.target.value)} placeholder="comma-separated emails" style={{ ...inputStyle, width: "100%", padding: "6px" }} />
-                            <button onClick={saveShares} style={{ marginTop: "4px" }}>Save</button>
-                        </div>
-                    </>
-                )}
-                {selected.shareWithEmails && selected.shareWithEmails.length > 0 && (
-                    <div style={{ marginTop: "8px", fontSize: "12px", color: "#888" }}>
-                        Shared: {selected.shareWithEmails.join(", ")}
+                    <div>
+                        <label style={{ fontSize: "14px" }}>
+                            <input
+                                type="checkbox"
+                                checked={!!selected.public}
+                                onChange={async () => {
+                                    try {
+                                        const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
+                                        applyListUpdate(updated);
+                                        setError("");
+                                    } catch (e) {
+                                        console.error(e);
+                                        setError("Unable to update public flag");
+                                    }
+                                }}
+                            />{' '}
+                            Make public (guest view)
+                        </label>
+                        {selected.public && (selected.publicSlug || selected.publicId) && (
+                            <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
+                                <div>
+                                    Public views: {selected.publicViewCount || 0}
+                                </div>
+                                <div>
+                                    Last viewed: {publicLastViewedAtLabel}
+                                </div>
+                                {selected.publicSlug && (
+                                    <div>
+                                        Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
+                                    </div>
+                                )}
+                                {selected.publicId && (
+                                    <div>
+                                        UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
                 {error && <div style={{ color: "#ef4444", marginTop: "12px" }}>{error}</div>}
