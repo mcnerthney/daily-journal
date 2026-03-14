@@ -174,6 +174,14 @@ async function connectDB() {
   const client = new MongoClient(MONGO_URI);
   await client.connect();
   db = client.db(DB_NAME);
+  await db.collection("lists").updateMany(
+    { publicId: null },
+    { $unset: { publicId: "" } }
+  );
+  await db.collection("lists").updateMany(
+    { publicSlug: null },
+    { $unset: { publicSlug: "" } }
+  );
   // ensure indexes for performance / uniqueness
   await db.collection("users").createIndex({ email: 1 }, { unique: true });
   await db.collection("entries").createIndex({ userId: 1, date: 1 }, { unique: true });
@@ -458,40 +466,52 @@ app.put("/api/lists/:id", auth, async (req, res) => {
     if (shareWithEmails) {
       sharedWith = await resolveEmails(shareWithEmails);
     }
-    const update = {};
-    if (name !== undefined) update.name = name;
-    if (items !== undefined) update.items = items;
-    if (sharedWith !== undefined) update.sharedWith = sharedWith;
-    if (shareWithEmails !== undefined) update.shareWithEmails = shareWithEmails;
+    const setUpdate = {};
+    const unsetUpdate = {};
+    if (name !== undefined) setUpdate.name = name;
+    if (items !== undefined) setUpdate.items = items;
+    if (sharedWith !== undefined) setUpdate.sharedWith = sharedWith;
+    if (shareWithEmails !== undefined) setUpdate.shareWithEmails = shareWithEmails;
     if (isPublic !== undefined) {
-      update.public = isPublic;
-      if (isPublic && !existing.publicId) update.publicId = crypto.randomUUID();
+      setUpdate.public = isPublic;
+      if (isPublic && !existing.publicId) setUpdate.publicId = crypto.randomUUID();
       if (isPublic && !existing.publicSlug) {
         const slugSource = name !== undefined ? name : existing.name;
-        update.publicSlug = await generateUniquePublicSlug(slugSource, existing._id);
+        setUpdate.publicSlug = await generateUniquePublicSlug(slugSource, existing._id);
       }
       if (!isPublic) {
-        update.publicId = null;
-        update.publicSlug = null;
+        unsetUpdate.publicId = "";
+        unsetUpdate.publicSlug = "";
       }
     }
     if (archived !== undefined) {
-      update.archived = !!archived;
-      update.archivedAt = archived ? new Date() : null;
+      setUpdate.archived = !!archived;
       if (archived) {
-        update.public = false;
-        update.publicId = null;
-        update.publicSlug = null;
+        setUpdate.archivedAt = new Date();
+      } else {
+        unsetUpdate.archivedAt = "";
+      }
+      if (archived) {
+        setUpdate.public = false;
+        unsetUpdate.publicId = "";
+        unsetUpdate.publicSlug = "";
       }
     }
     if (name !== undefined && (isPublic === true || (isPublic === undefined && existing.public))) {
-      update.publicSlug = await generateUniquePublicSlug(name, existing._id);
+      setUpdate.publicSlug = await generateUniquePublicSlug(name, existing._id);
     }
     const previousPublicId = existing.publicId;
     const previousPublicSlug = existing.publicSlug;
     const previousWasPublic = !!existing.public;
 
-    await lists().updateOne(filter, { $set: update });
+    const mongoUpdate = {};
+    if (Object.keys(setUpdate).length > 0) {
+      mongoUpdate.$set = setUpdate;
+    }
+    if (Object.keys(unsetUpdate).length > 0) {
+      mongoUpdate.$unset = unsetUpdate;
+    }
+    await lists().updateOne(filter, mongoUpdate);
     const newDoc = await lists().findOne(filter);
     const recipients = [newDoc.owner, ...(newDoc.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:updated", newDoc));
@@ -590,14 +610,17 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
       return res.json({ ok: true, permanent: true, id });
     }
 
-    const update = {
-      archived: true,
-      archivedAt: new Date(),
-      public: false,
-      publicId: null,
-      publicSlug: null,
-    };
-    await lists().updateOne(filter, { $set: update });
+    await lists().updateOne(filter, {
+      $set: {
+        archived: true,
+        archivedAt: new Date(),
+        public: false,
+      },
+      $unset: {
+        publicId: "",
+        publicSlug: "",
+      },
+    });
     const archivedDoc = await lists().findOne(filter);
     const recipients = [archivedDoc.owner, ...(archivedDoc.sharedWith || [])];
     recipients.forEach(u => io.to(u).emit("list:updated", archivedDoc));
