@@ -468,9 +468,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     return (
         <div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Lists</h2>
-            <div style={{ marginTop: "20px", marginBottom: "16px", maxWidth: "420px" }}>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "8px" }} />
-                <button onClick={saveNewList} style={{ marginTop: "8px" }}>Create</button>
+            <div style={{ marginTop: "20px", marginBottom: "16px", width: "100%", display: "flex", gap: "8px", alignItems: "stretch" }}>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, flex: 1, padding: "8px" }} />
+                <button onClick={saveNewList}>Create</button>
             </div>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                 {activeLists.map(l => (
