@@ -100,7 +100,7 @@ export default function BpChart({ entries }) {
                     return (
                         <g key={`dia-${d.date}`}>
                             <circle cx={x} cy={y} r="2.5" fill={colors.diastolic} />
-                            <text x={x} y={y + 12} fontSize="10" fill={colors.diastolic} textAnchor="middle">
+                            <text x={x} y={y - 6} fontSize="10" fill={colors.diastolic} textAnchor="middle">
                                 {d.val}
                             </text>
                         </g>
