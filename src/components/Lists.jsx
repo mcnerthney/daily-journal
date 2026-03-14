@@ -233,15 +233,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     if (selectedId) {
         return (
             <div style={{ minHeight: "calc(100vh - 180px)" }}>
-                <div style={{ marginBottom: "16px" }}>
-                    <button
-                        onClick={backToLists}
-                        style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px", padding: 0 }}
-                    >
-                        ← Back to lists
-                    </button>
-                </div>
-
                 <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
                     <input
                         value={selected.name || ""}
@@ -391,12 +382,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                 </div>
                                 {selected.publicSlug && (
                                     <div>
-                                        Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicSlug}</a>
+                                        Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "#c0c0c0", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
                                     </div>
                                 )}
                                 {selected.publicId && (
                                     <div>
-                                        UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer">/lists/public/{selected.publicId}</a>
+                                        UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "#c0c0c0", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
                                     </div>
                                 )}
                             </div>

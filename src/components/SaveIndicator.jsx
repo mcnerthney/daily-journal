@@ -3,9 +3,9 @@ import React from "react";
 export default function SaveIndicator({ status }) {
     const map = {
         idle: { text: "", color: "transparent" },
-        saving: { text: "Saving…", color: "#eab308" },
-        saved: { text: "✓ Saved", color: "#22c55e" },
-        error: { text: "Save failed", color: "#ef4444" },
+        saving: { text: "Saving…", color: "#ffffff" },
+        saved: { text: "✓ Saved", color: "#ffffff" },
+        error: { text: "Save failed", color: "#ffffff" },
     };
     const s = map[status] || map.idle;
     return (

@@ -24,7 +24,6 @@ import Section from "./components/Section";
 import MoodSelector from "./components/MoodSelector";
 import ScoreBar from "./components/ScoreBar";
 import EntryView from "./components/EntryView";
-import LivePill from "./components/LivePill";
 import Toast from "./components/Toast";
 import SaveIndicator from "./components/SaveIndicator";
 import AuthForm from "./components/AuthForm";
@@ -170,6 +169,7 @@ export default function App() {
 
   // derive feature metadata from the list
   const currentFeature = FEATURES.find(f => f.key === appView);
+  const isListEditor = appView === "lists" && !!selectedListIdRoute;
   const featureTitle = appView === "lists" && selectedListIdRoute
     ? "List Editor"
     : (currentFeature ? currentFeature.label : "");
@@ -235,12 +235,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("idle");
   const [customMedInput, setCustomMedInput] = useState("");
-  const [connected, setConnected] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // or register
   const [authError, setAuthError] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [resetToken, setResetToken] = useState("");
-  const [viewers, setViewers] = useState(1);
   const [toast, setToast] = useState({ message: "", visible: false });
   // keep a constant for the real "today" so we can label toasts appropriately
   const today = currentDate;
@@ -295,9 +293,6 @@ export default function App() {
     });
     socketRef.current = socket;
 
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
-
     if (publicListKey) {
       const subscribe = () => socket.emit("public-list:subscribe", {
         publicId: publicListId || undefined,
@@ -306,8 +301,6 @@ export default function App() {
       socket.on("connect", subscribe);
       if (socket.connected) subscribe();
     }
-
-    socket.on("presence", ({ count }) => setViewers(count));
 
     socket.on("entry:updated", ({ date, entry }) => {
       // Skip toast if this browser triggered the save
@@ -590,62 +583,56 @@ export default function App() {
         <div style={{ maxWidth: "680px", margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                {appView !== "home" && (
-                  <button
-                    onClick={() => { navigateToRoute(""); setView("today"); setActiveDate(today); }}
-                    style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px" }}
-                  >
-                    ← Home
-                  </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                {appView === "home" ? (
+                  <h1 style={{ margin: 0, fontSize: "22px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "#ffffff" }}>
+                    Notebook
+                  </h1>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => { navigateToRoute(""); setView("today"); setActiveDate(today); }}
+                      style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                    >
+                      Home
+                    </button>
+                    <span style={{ color: "#ffffff", fontSize: "14px" }}>/</span>
+                    {isListEditor ? (
+                      <>
+                        <button
+                          onClick={() => navigateToRoute("lists")}
+                          style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                        >
+                          Lists
+                        </button>
+                        <span style={{ color: "#ffffff", fontSize: "14px" }}>/</span>
+                        <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "#ffffff" }}>
+                          List Editor
+                        </h1>
+                      </>
+                    ) : (
+                      <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "#ffffff" }}>
+                        {featureTitle || "Notebook"}
+                      </h1>
+                    )}
+                  </>
                 )}
-                <h1 style={{ margin: 0, fontSize: "22px", fontFamily: "'Playfair Display', serif", fontWeight: 700, background: "linear-gradient(135deg,#c9b8ff,#f0acd4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  {featureTitle || "Notebook"}
-                </h1>
-                <LivePill connected={connected} viewers={viewers} />
                 <SaveIndicator status={saveStatus} />
-              </div>
-              <div style={{ color: "#666", fontSize: "12px", marginTop: "4px" }}>
-                {activeDateLabel}
-                {activeDate !== today && (
-                  <button
-                    onClick={() => setActiveDate(today)}
-                    style={{
-                      marginLeft: "8px",
-                      background: "none",
-                      border: "none",
-                      color: "#4ade80",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                    }}
-                  >
-                    Today
-                  </button>
-                )}
               </div>
             </div>
             {appView === "journal" && (
               <div style={{ display: "flex", gap: "8px" }}>
                 {["today", "history", "chart"].map(v => (
-                  <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid #6d5acd" : "1px solid #2a2a3a", background: view === v ? "#6d5acd22" : "transparent", color: view === v ? "#c9b8ff" : "#666", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
+                  <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid #ffffff" : "1px solid #2a2a3a", background: view === v ? "#ffffff22" : "transparent", color: "#ffffff", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
                     {v === "chart" ? "Stats" : v}
                   </button>
                 ))}
               </div>
             )}
-            <button onClick={logout} style={{ marginLeft: "12px", padding: "7px 16px", borderRadius: "10px", border: "1px solid #ef4444", background: "#ef444422", color: "#ef4444", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>
+            <button onClick={logout} style={{ marginLeft: "12px", padding: "7px 16px", borderRadius: "10px", border: "1px solid #ffffff", background: "#ffffff22", color: "#ffffff", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>
               Log out
             </button>
           </div>
-          {appView === "journal" && view === "today" && (
-            <div style={{ marginTop: "14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888", marginBottom: "4px" }}>
-                <span>{activeDateLabel} wellness score</span>
-                <span style={{ color: scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#ef4444", fontWeight: 600 }}>{scorePct}%</span>
-              </div>
-              <ScoreBar score={activeScore} max={maxScore} color={scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#6d5acd"} />
-            </div>
-          )}
         </div>
       </div>
 
@@ -666,6 +653,31 @@ export default function App() {
           </div>
         ) : view === "today" ? (
           <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", fontSize: "13px", color: "#ccc" }}>
+              <span>{activeDateLabel}</span>
+              {activeDate !== today && (
+                <button
+                  onClick={() => setActiveDate(today)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    padding: 0,
+                  }}
+                >
+                  Today
+                </button>
+              )}
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#ffffff", marginBottom: "4px" }}>
+                <span>Wellness score</span>
+                <span style={{ color: "#ffffff", fontWeight: 600 }}>{scorePct}%</span>
+              </div>
+              <ScoreBar score={activeScore} max={maxScore} color={scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#6d5acd"} />
+            </div>
             <Section title="How are you feeling?" icon="💭" accent="#c9b8ff">
               <MoodSelector value={activeEntry.mood || null} onChange={v => updateEntry({ mood: v })} />
 
