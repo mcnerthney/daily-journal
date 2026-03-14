@@ -12,6 +12,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const dragIndex = useRef(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
     const [trashOver, setTrashOver] = useState(false);
+    const dragListId = useRef(null);
+    const [dragOverListId, setDragOverListId] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -21,10 +23,33 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         border: "1px solid var(--input-border)",
         borderRadius: "6px",
     };
+    const createButtonStyle = {
+        width: "fit-content",
+        background: "var(--surface)",
+        border: "1px solid var(--border)",
+        borderRadius: "10px",
+        color: "var(--heading)",
+        cursor: "pointer",
+        padding: "10px 12px",
+        fontSize: "14px",
+        whiteSpace: "nowrap",
+    };
 
     const getListId = (list) => {
         if (!list) return "";
         return String(list._id ?? list.id ?? "");
+    };
+
+    const sortLists = (items) => {
+        const toOrder = (list) => {
+            const value = Number(list?.sortOrder);
+            return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+        };
+        return [...items].sort((a, b) => {
+            const byOrder = toOrder(a) - toOrder(b);
+            if (byOrder !== 0) return byOrder;
+            return (a.name || "").localeCompare(b.name || "");
+        });
     };
 
     const upsertList = (incoming) => {
@@ -258,9 +283,48 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         }
     };
 
+    const reorderLists = async (targetId, archivedState) => {
+        const sourceId = String(dragListId.current || "");
+        const normalizedTargetId = String(targetId || "");
+        dragListId.current = null;
+        setDragOverListId(null);
+
+        if (!sourceId || !normalizedTargetId || sourceId === normalizedTargetId) return;
+
+        const group = sortLists(lists.filter((l) => !!l.archived === archivedState));
+        const from = group.findIndex((l) => getListId(l) === sourceId);
+        const to = group.findIndex((l) => getListId(l) === normalizedTargetId);
+        if (from === -1 || to === -1) return;
+
+        const reordered = [...group];
+        const [moved] = reordered.splice(from, 1);
+        reordered.splice(to, 0, moved);
+        const nextOrderMap = new Map(reordered.map((list, idx) => [getListId(list), idx]));
+
+        setLists((prev) => prev.map((list) => {
+            if (!!list.archived !== archivedState) return list;
+            const nextOrder = nextOrderMap.get(getListId(list));
+            if (nextOrder === undefined) return list;
+            return { ...list, sortOrder: nextOrder };
+        }));
+
+        try {
+            await Promise.all(
+                reordered.map((list, idx) => updateList(getListId(list), { sortOrder: idx }, authHeaders))
+            );
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError("Unable to reorder lists", e));
+            fetchLists(authHeaders, { includeArchived: true })
+                .then(setLists)
+                .catch(() => {});
+        }
+    };
+
     const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
-    const activeLists = lists.filter((l) => !l.archived);
-    const archivedLists = lists.filter((l) => l.archived);
+    const activeLists = sortLists(lists.filter((l) => !l.archived));
+    const archivedLists = sortLists(lists.filter((l) => l.archived));
     const publicLastViewedAtLabel = selected.publicLastViewedAt
         ? new Date(selected.publicLastViewedAt).toLocaleString()
         : "Never";
@@ -395,18 +459,23 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             style={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "8px",
+                                gap: "6px",
                                 marginBottom: "8px",
                                 borderTop: dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
                             }}
                         >
-                            <span
-                                style={{ cursor: "grab", color: "var(--muted)", userSelect: "none", fontSize: "18px", lineHeight: 1 }}
-                                title="Drag to reorder"
-                            >
-                                ⠿
-                            </span>
-                            <input type="checkbox" checked={it.done} onChange={() => toggleItem(idx)} />
+                            <input
+                                type="checkbox"
+                                checked={it.done}
+                                onChange={() => toggleItem(idx)}
+                                style={{
+                                    width: "16px",
+                                    height: "16px",
+                                    accentColor: it.done ? "var(--muted)" : "var(--text)",
+                                    cursor: "pointer",
+                                    flexShrink: 0,
+                                }}
+                            />
                             <input
                                 defaultValue={it.text}
                                 onBlur={(e) => renameItem(idx, e.target.value)}
@@ -487,14 +556,34 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
 
     return (
         <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Lists</h2>
             <div style={{ marginTop: "20px", marginBottom: "16px", width: "100%", display: "flex", gap: "8px", alignItems: "stretch" }}>
                 <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, flex: 1, padding: "8px" }} />
-                <button onClick={saveNewList}>Create</button>
+                <button onClick={saveNewList} style={createButtonStyle}>Create</button>
             </div>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                 {activeLists.map(l => (
-                    <li key={getListId(l)}>
+                    <li
+                        key={getListId(l)}
+                        draggable
+                        onDragStart={() => { dragListId.current = getListId(l); }}
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOverListId(getListId(l));
+                        }}
+                        onDrop={async () => {
+                            await reorderLists(getListId(l), false);
+                        }}
+                        onDragEnd={() => {
+                            dragListId.current = null;
+                            setDragOverListId(null);
+                        }}
+                        style={{
+                            borderTop: dragOverListId === getListId(l) ? "2px solid var(--ring)" : "2px solid transparent",
+                            borderRadius: "10px",
+                            paddingTop: dragOverListId === getListId(l) ? "4px" : 0,
+                            transition: "border-color 0.15s ease",
+                        }}
+                    >
                         <button
                             onClick={() => selectList(getListId(l))}
                             style={{
@@ -525,7 +614,28 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     {showArchived && (
                         <ul style={{ marginTop: "8px", padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                             {archivedLists.map(l => (
-                                <li key={getListId(l)}>
+                                <li
+                                    key={getListId(l)}
+                                    draggable
+                                    onDragStart={() => { dragListId.current = getListId(l); }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        setDragOverListId(getListId(l));
+                                    }}
+                                    onDrop={async () => {
+                                        await reorderLists(getListId(l), true);
+                                    }}
+                                    onDragEnd={() => {
+                                        dragListId.current = null;
+                                        setDragOverListId(null);
+                                    }}
+                                    style={{
+                                        borderTop: dragOverListId === getListId(l) ? "2px solid var(--ring)" : "2px solid transparent",
+                                        borderRadius: "10px",
+                                        paddingTop: dragOverListId === getListId(l) ? "4px" : 0,
+                                        transition: "border-color 0.15s ease",
+                                    }}
+                                >
                                     <button
                                         onClick={() => selectList(getListId(l))}
                                         style={{

@@ -368,7 +368,17 @@ app.get("/api/lists", auth, async (req, res) => {
       const users = await db.collection("users").find({ _id: { $in: ownerIds.map(id => new ObjectId(id)) } }).toArray();
       ownerMap = users.reduce((m, u) => ({ ...m, [u._id.toString()]: u.email }), {});
     }
-    const enriched = docs.map(d => ({ ...d, ownerEmail: ownerMap[d.owner] || "" }));
+    const enriched = docs
+      .map(d => ({ ...d, ownerEmail: ownerMap[d.owner] || "" }))
+      .sort((a, b) => {
+        const toOrder = (list) => {
+          const value = Number(list?.sortOrder);
+          return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+        };
+        const byOrder = toOrder(a) - toOrder(b);
+        if (byOrder !== 0) return byOrder;
+        return String(a?.name || "").localeCompare(String(b?.name || ""));
+      });
 
     res.json(enriched);
   } catch (err) {
@@ -393,10 +403,16 @@ app.post("/api/lists", auth, async (req, res) => {
     if (!name) return res.status(400).json({ error: "Missing name" });
     const owner = req.userId;
     const sharedWith = await resolveEmails(shareWithEmails);
+    const ownerLists = await lists().find({ owner }, { projection: { sortOrder: 1 } }).toArray();
+    const minSortOrder = ownerLists.reduce((min, list) => {
+      const value = Number(list?.sortOrder);
+      return Number.isFinite(value) ? Math.min(min, value) : min;
+    }, 0);
     const doc = {
       name,
       owner,
       items,
+      sortOrder: minSortOrder - 1,
       sharedWith,
       shareWithEmails,
       publicViewCount: 0,
@@ -440,7 +456,7 @@ app.post("/api/lists", auth, async (req, res) => {
 app.put("/api/lists/:id", auth, async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, items, shareWithEmails, public: isPublic, archived } = req.body;
+    const { name, items, shareWithEmails, public: isPublic, archived, sortOrder } = req.body;
     const userId = req.userId;
     const filter = { _id: new ObjectId(id) };
     const existing = await lists().findOne(filter);
@@ -496,6 +512,13 @@ app.put("/api/lists/:id", auth, async (req, res) => {
         unsetUpdate.publicId = "";
         unsetUpdate.publicSlug = "";
       }
+    }
+    if (sortOrder !== undefined) {
+      const numericOrder = Number(sortOrder);
+      if (!Number.isFinite(numericOrder)) {
+        return res.status(400).json({ error: "Invalid sortOrder" });
+      }
+      setUpdate.sortOrder = numericOrder;
     }
     if (name !== undefined && (isPublic === true || (isPublic === undefined && existing.public))) {
       setUpdate.publicSlug = await generateUniquePublicSlug(name, existing._id);
