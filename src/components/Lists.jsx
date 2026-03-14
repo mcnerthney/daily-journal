@@ -5,6 +5,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const [lists, setLists] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [newName, setNewName] = useState("");
+    const [titleDraft, setTitleDraft] = useState("");
     const [newNamePublic, setNewNamePublic] = useState(false);
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
@@ -88,6 +89,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         setShareInput("");
         setError("");
     }, [routeSelectedId]);
+
+    // sync title draft when the selected list or its name changes
+    useEffect(() => {
+        const list = lists.find((l) => getListId(l) === String(selectedId || ""));
+        setTitleDraft(list?.name || "");
+    }, [selectedId, lists]);
 
     // subscribe to realtime updates
     useEffect(() => {
@@ -370,8 +377,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             <div style={{ minHeight: "calc(100vh + 220px)", display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
                     <input
-                        value={selected.name || ""}
-                        onChange={e => changeName(e.target.value)}
+                        value={titleDraft}
+                        onChange={e => setTitleDraft(e.target.value)}
+                        onBlur={() => {
+                            const trimmed = titleDraft.trim();
+                            if (trimmed && trimmed !== selected.name) changeName(trimmed);
+                        }}
                         disabled={!isOwner || !!selected.archived}
                         style={{
                             ...inputStyle,
