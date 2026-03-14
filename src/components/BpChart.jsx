@@ -149,7 +149,7 @@ export default function BpChart({ entries }) {
                     />
                 )}
             </svg>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px' }}>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-start', marginTop: '8px' }}>
                 <span style={{ color: colors.systolic, fontSize: '12px' }}>🟠 Systolic</span>
                 <span style={{ color: colors.diastolic, fontSize: '12px' }}>🟢 Diastolic</span>
             </div>
