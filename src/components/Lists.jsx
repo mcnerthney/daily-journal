@@ -21,6 +21,23 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         borderRadius: "6px",
     };
 
+    const getListId = (list) => {
+        if (!list) return "";
+        return String(list._id ?? list.id ?? "");
+    };
+
+    const upsertList = (incoming) => {
+        setLists((prev) => {
+            const incomingId = getListId(incoming);
+            if (!incomingId) return [...prev, incoming];
+            const idx = prev.findIndex((l) => getListId(l) === incomingId);
+            if (idx === -1) return [...prev, incoming];
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], ...incoming };
+            return copy;
+        });
+    };
+
     // load lists
     useEffect(() => {
         if (!token) return;
@@ -45,19 +62,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     useEffect(() => {
         if (!socket) return;
         const handler = (updated) => {
-            setLists((prev) => {
-                const idx = prev.findIndex((l) => l._id === updated._id);
-                if (idx > -1) {
-                    const copy = [...prev];
-                    copy[idx] = updated;
-                    return copy;
-                }
-                return [...prev, updated];
-            });
+            upsertList(updated);
         };
         const delHandler = ({ id }) => {
-            setLists((prev) => prev.filter((l) => l._id !== id));
-            if (selectedId === id) {
+            const deletedId = String(id || "");
+            setLists((prev) => prev.filter((l) => getListId(l) !== deletedId));
+            if (String(selectedId || "") === deletedId) {
                 setSelectedId(null);
                 if (onCloseList) onCloseList();
             }
@@ -92,7 +102,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     };
 
     const applyListUpdate = (updated) => {
-        setLists((prev) => prev.map((list) => (list._id === updated._id ? updated : list)));
+        upsertList(updated);
     };
 
     const saveItems = async (items, errorMessage) => {
@@ -111,10 +121,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         if (!newName.trim()) return;
         try {
             const doc = await createList({ name: newName.trim(), public: newNamePublic }, authHeaders);
-            setLists((p) => [...p, doc]);
+            upsertList(doc);
             setNewName("");
             setNewNamePublic(false);
-            selectList(doc._id);
+            selectList(getListId(doc));
         } catch (e) {
             console.error(e);
             setError("Unable to create list");
@@ -438,16 +448,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             </ul>
             <div style={{ marginTop: "20px", maxWidth: "420px" }}>
                 <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "8px" }} />
-                <div style={{ marginTop: "8px", fontSize: "14px" }}>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={newNamePublic || false}
-                            onChange={e => setNewNamePublic(e.target.checked)}
-                        />{' '}
-                        Public
-                    </label>
-                </div>
                 <button onClick={saveNewList} style={{ marginTop: "8px" }}>Create</button>
             </div>
             {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
