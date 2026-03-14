@@ -18,6 +18,10 @@ export default function BpChart({ entries }) {
         ...diaArr.map(d => d.val),
         0
     );
+    const min = diaArr.length > 0
+        ? Math.min(...diaArr.map(d => d.val))
+        : 0;
+    const range = Math.max(max - min, 1);
 
     const width = 700, height = 240, padding = 40;
     const colors = { systolic: '#fb923c', diastolic: '#4ade80' };
@@ -27,7 +31,7 @@ export default function BpChart({ entries }) {
             // determine index of this date in full series to place on correct x
             const i = dates.indexOf(d.date);
             const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
-            const y = height - padding - (max ? (d.val / max) * (height - 2 * padding) : 0);
+            const y = height - padding - ((d.val - min) / range) * (height - 2 * padding);
             return [x, y];
         });
 
@@ -55,7 +59,7 @@ export default function BpChart({ entries }) {
                 {(() => {
                     const vals = Array.from(new Set([...sysArr, ...diaArr].map(d => d.val))).sort((a, b) => a - b);
                     return vals.map(v => {
-                        const y = height - padding - (max ? (v / max) * (height - 2 * padding) : 0);
+                        const y = height - padding - ((v - min) / range) * (height - 2 * padding);
                         return (
                             <text key={v} x={padding - 10} y={y + 4} fontSize="10" fill="#888" textAnchor="end">
                                 {v}
