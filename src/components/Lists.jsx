@@ -39,6 +39,11 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         });
     };
 
+    const formatActionError = (fallback, err) => {
+        const detail = err?.message && err.message !== fallback ? err.message : "";
+        return detail ? `${fallback}: ${detail}` : fallback;
+    };
+
     // load lists
     useEffect(() => {
         if (!token) return;
@@ -53,7 +58,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     // keep selection synced with hash route when App drives this screen
     useEffect(() => {
         if (routeSelectedId === undefined) return;
-        setSelectedId(routeSelectedId || null);
+        setSelectedId(routeSelectedId ? String(routeSelectedId) : null);
         setNewItem("");
         setShareInput("");
         setError("");
@@ -82,10 +87,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     }, [socket, selectedId, onCloseList]);
 
     const selectList = (id) => {
+        const normalizedId = String(id || "");
+        if (!normalizedId) return;
         if (onSelectList) {
-            onSelectList(id);
+            onSelectList(normalizedId);
         } else {
-            setSelectedId(id);
+            setSelectedId(normalizedId);
         }
         setNewItem("");
         setShareInput("");
@@ -107,14 +114,15 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     };
 
     const saveItems = async (items, errorMessage) => {
-        if (!selectedId) return;
+        const selectedListId = String(selectedId || "");
+        if (!selectedListId) return;
         try {
-            const updated = await updateList(selectedId, { items }, authHeaders);
+            const updated = await updateList(selectedListId, { items }, authHeaders);
             applyListUpdate(updated);
             setError("");
         } catch (e) {
             console.error(e);
-            setError(errorMessage);
+            setError(formatActionError(errorMessage, e));
         }
     };
 
@@ -128,33 +136,37 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             selectList(getListId(doc));
         } catch (e) {
             console.error(e);
-            setError("Unable to create list");
+            setError(formatActionError("Unable to create list", e));
         }
     };
 
     const addItem = async () => {
-        if (!newItem.trim() || !selectedId) return;
-        const list = lists.find((l) => l._id === selectedId);
+        const selectedListId = String(selectedId || "");
+        if (!newItem.trim() || !selectedListId) return;
+        const list = lists.find((l) => getListId(l) === selectedListId);
         const items = [{ text: newItem.trim(), done: false }, ...(list?.items || [])];
         try {
-            const updated = await updateList(selectedId, { items }, authHeaders);
+            const updated = await updateList(selectedListId, { items }, authHeaders);
             applyListUpdate(updated);
             setNewItem("");
             setError("");
         } catch (e) {
             console.error(e);
-            setError("Unable to add item");
+            setError(formatActionError("Unable to add item", e));
         }
     };
 
     const toggleItem = async (index) => {
-        const list = lists.find((l) => l._id === selectedId);
+        const selectedListId = String(selectedId || "");
+        const list = lists.find((l) => getListId(l) === selectedListId);
+        if (!list) return;
         const items = list.items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
         await saveItems(items, "Unable to toggle item");
     };
 
     const renameItem = async (index, value) => {
-        const list = lists.find((l) => l._id === selectedId);
+        const selectedListId = String(selectedId || "");
+        const list = lists.find((l) => getListId(l) === selectedListId);
         if (!list) return;
         const text = value.trim();
         if (!text || text === list.items?.[index]?.text) return;
@@ -163,73 +175,77 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     };
 
     const deleteItem = async (index) => {
-        const list = lists.find((l) => l._id === selectedId);
+        const selectedListId = String(selectedId || "");
+        const list = lists.find((l) => getListId(l) === selectedListId);
         const items = (list?.items || []).filter((_, itemIndex) => itemIndex !== index);
         await saveItems(items, "Unable to delete item");
     };
 
     const changeName = async (name) => {
-        const list = lists.find((l) => l._id === selectedId);
+        const selectedListId = String(selectedId || "");
+        const list = lists.find((l) => getListId(l) === selectedListId);
         if (!list) return;
         try {
-            const updated = await updateList(selectedId, { name }, authHeaders);
+            const updated = await updateList(selectedListId, { name }, authHeaders);
             applyListUpdate(updated);
             setError("");
         } catch (e) {
             console.error(e);
-            setError("Unable to rename");
+            setError(formatActionError("Unable to rename", e));
         }
     };
 
     const saveShares = async () => {
+        const selectedListId = String(selectedId || "");
+        if (!selectedListId) return;
         const emails = shareInput.split(",").map(s => s.trim()).filter(Boolean);
         try {
-            const updated = await updateList(selectedId, { shareWithEmails: emails }, authHeaders);
+            const updated = await updateList(selectedListId, { shareWithEmails: emails }, authHeaders);
             applyListUpdate(updated);
             setError("");
         } catch (e) {
             console.error(e);
-            setError("Unable to update sharing");
+            setError(formatActionError("Unable to update sharing", e));
         }
     };
 
     const archiveCurrent = async () => {
-        if (!selectedId) return;
+        const selectedListId = String(selectedId || "");
+        if (!selectedListId) return;
         try {
-            await deleteList(selectedId, authHeaders);
-            setLists((prev) => prev.map((l) => (
-                getListId(l) === String(selectedId)
-                    ? { ...l, archived: true, archivedAt: new Date().toISOString(), public: false, publicId: null, publicSlug: null }
-                    : l
-            )));
+            const updated = await updateList(selectedListId, { archived: true }, authHeaders);
+            applyListUpdate(updated);
             if (onCloseList) {
                 onCloseList();
             } else {
                 setSelectedId(null);
             }
+            setError("");
         } catch (e) {
             console.error(e);
-            setError("Unable to archive");
+            setError(formatActionError("Unable to archive", e));
         }
     };
 
     const unarchiveCurrent = async () => {
-        if (!selectedId) return;
+        const selectedListId = String(selectedId || "");
+        if (!selectedListId) return;
         try {
-            const updated = await updateList(selectedId, { archived: false }, authHeaders);
+            const updated = await updateList(selectedListId, { archived: false }, authHeaders);
             applyListUpdate(updated);
             setError("");
         } catch (e) {
             console.error(e);
-            setError("Unable to unarchive");
+            setError(formatActionError("Unable to unarchive", e));
         }
     };
 
     const permanentDeleteCurrent = async () => {
-        if (!selectedId) return;
+        const selectedListId = String(selectedId || "");
+        if (!selectedListId) return;
         try {
-            await deleteList(selectedId, authHeaders, { permanent: true });
-            setLists((prev) => prev.filter((l) => getListId(l) !== String(selectedId)));
+            await deleteList(selectedListId, authHeaders, { permanent: true });
+            setLists((prev) => prev.filter((l) => getListId(l) !== selectedListId));
             if (onCloseList) {
                 onCloseList();
             } else {
@@ -238,7 +254,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             setError("");
         } catch (e) {
             console.error(e);
-            setError("Unable to permanently delete");
+            setError(formatActionError("Unable to permanently delete", e));
         }
     };
 
@@ -367,7 +383,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                     dragIndex.current = null;
                                     return;
                                 }
-                                const list = lists.find((l) => l._id === selectedId);
+                                const list = lists.find((l) => getListId(l) === String(selectedId || ""));
                                 const items = [...(list?.items || [])];
                                 const [moved] = items.splice(dragIndex.current, 1);
                                 items.splice(idx, 0, moved);
@@ -423,7 +439,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                         setError("");
                                     } catch (e) {
                                         console.error(e);
-                                        setError("Unable to update public flag");
+                                        setError(formatActionError("Unable to update public flag", e));
                                     }
                                 }}
                             />{' '}
@@ -478,9 +494,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             </div>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                 {activeLists.map(l => (
-                    <li key={l._id}>
+                    <li key={getListId(l)}>
                         <button
-                            onClick={() => selectList(l._id)}
+                            onClick={() => selectList(getListId(l))}
                             style={{
                                 width: "100%",
                                 textAlign: "left",
@@ -509,9 +525,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     {showArchived && (
                         <ul style={{ marginTop: "8px", padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                             {archivedLists.map(l => (
-                                <li key={l._id}>
+                                <li key={getListId(l)}>
                                     <button
-                                        onClick={() => selectList(l._id)}
+                                        onClick={() => selectList(getListId(l))}
                                         style={{
                                             width: "100%",
                                             textAlign: "left",

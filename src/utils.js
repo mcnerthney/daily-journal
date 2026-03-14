@@ -52,7 +52,8 @@ export async function fetchLists(headers = {}, options = {}) {
     const query = params.toString() ? `?${params.toString()}` : "";
     const res = await fetch(`${API}/lists${query}`, { headers });
     if (!res.ok) {
-        const err = new Error("fetch failed");
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "fetch failed");
         if (res.status === 401) err.code = 401;
         throw err;
     }
@@ -66,7 +67,8 @@ export async function createList(data, headers = {}) {
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const err = new Error("create failed");
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "create failed");
         if (res.status === 401) err.code = 401;
         throw err;
     }
@@ -80,7 +82,8 @@ export async function updateList(id, data, headers = {}) {
         body: JSON.stringify(data),
     });
     if (!res.ok) {
-        const err = new Error("update failed");
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "update failed");
         if (res.status === 401) err.code = 401;
         throw err;
     }
@@ -96,7 +99,8 @@ export async function deleteList(id, headers = {}, options = {}) {
         headers,
     });
     if (!res.ok) {
-        const err = new Error("delete failed");
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "delete failed");
         if (res.status === 401) err.code = 401;
         throw err;
     }

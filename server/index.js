@@ -553,6 +553,9 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     const id = req.params.id;
     const permanent = req.query.permanent === "true";
     const userId = req.userId;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid list id" });
+    }
     const filter = { _id: new ObjectId(id) };
     const existing = await lists().findOne(filter);
     if (!existing) return res.json({ ok: true });
