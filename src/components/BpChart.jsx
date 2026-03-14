@@ -32,7 +32,7 @@ export default function BpChart({ entries }) {
     const range = Math.max(max - min, 1);
 
     const width = 700, height = 240, padding = 40;
-    const xAxisLabelOffset = 22;
+    const xAxisLabelOffset = 16;
     const colors = { systolic: '#fb923c', diastolic: '#4ade80' };
     const indexDenominator = Math.max(dates.length - 1, 1);
 
@@ -132,7 +132,7 @@ export default function BpChart({ entries }) {
                 {dates.map((date, i) => {
                     const x = getXForIndex(i);
                     return (
-                        <text key={i} x={x} y={height - padding + xAxisLabelOffset} fontSize="10" fill="#888" textAnchor="middle">
+                        <text key={i} x={x} y={height - padding + xAxisLabelOffset} fontSize="12" fill="#888" textAnchor="middle">
                             {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                         </text>
                     );
