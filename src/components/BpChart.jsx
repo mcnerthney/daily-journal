@@ -63,6 +63,8 @@ export default function BpChart({ entries }) {
     const sysPath = sysPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
     const diaPath = diaPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
     const hoverX = hoverIndex != null ? getXForIndex(hoverIndex) : null;
+    const line130Y = Math.min(height - padding, Math.max(padding, getYForValue(130)));
+    const line80Y = Math.min(height - padding, Math.max(padding, getYForValue(80)));
 
     return (
         <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
@@ -78,6 +80,24 @@ export default function BpChart({ entries }) {
                 onMouseLeave={() => setHoverIndex(null)}
             >
                 <rect width="100%" height="100%" fill="#12121a" />
+                <line
+                    x1={padding}
+                    y1={line130Y}
+                    x2={width - padding}
+                    y2={line130Y}
+                    stroke="#fdba74"
+                    strokeWidth="1"
+                    opacity="0.7"
+                />
+                <line
+                    x1={padding}
+                    y1={line80Y}
+                    x2={width - padding}
+                    y2={line80Y}
+                    stroke="#86efac"
+                    strokeWidth="1"
+                    opacity="0.7"
+                />
                 <path d={sysPath} fill="none" stroke={colors.systolic} strokeWidth="2" />
                 <path d={diaPath} fill="none" stroke={colors.diastolic} strokeWidth="2" />
                 {sysArr.map((d) => {
