@@ -287,7 +287,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
 
     if (selectedId) {
         return (
-            <div style={{ minHeight: "calc(100vh - 180px)" }}>
+            <div style={{ minHeight: "calc(100vh + 220px)", display: "flex", flexDirection: "column" }}>
                 <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
                     <input
                         value={selected.name || ""}
@@ -343,7 +343,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             width: "36px",
                             height: "36px",
                             borderRadius: "6px",
-                            border: `2px dashed ${trashOver ? "var(--error)" : "var(--muted)"}`,
+                            border: `2px solid ${trashOver ? "var(--error)" : "transparent"}`,
                             background: trashOver ? "var(--error-soft)" : "transparent",
                             fontSize: "18px",
                             flexShrink: 0,
@@ -451,13 +451,17 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                         )}
                     </div>
                 )}
-                {isOwner && !selected.archived && (
-                    <button onClick={archiveCurrent} style={{ marginTop: "24px", width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Archive list</button>
-                )}
-                {isOwner && selected.archived && (
-                    <div style={{ marginTop: "24px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                        <button onClick={unarchiveCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--heading)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Unarchive list</button>
-                        <button onClick={permanentDeleteCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Permanently delete</button>
+                {isOwner && (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "auto", paddingTop: "24px" }}>
+                        {!selected.archived && (
+                            <button onClick={archiveCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "10px 12px", fontSize: "14px" }}>Archive list</button>
+                        )}
+                        {selected.archived && (
+                            <>
+                                <button onClick={unarchiveCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--heading)", cursor: "pointer", padding: "10px 12px", fontSize: "14px" }}>Unarchive list</button>
+                                <button onClick={permanentDeleteCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "10px 12px", fontSize: "14px" }}>Permanently delete</button>
+                            </>
+                        )}
                     </div>
                 )}
                 {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
