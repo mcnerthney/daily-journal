@@ -4,8 +4,8 @@ export default function Section({ title, icon, children, accent }) {
     return (
         <div
             style={{
-                background: "#12121a",
-                border: `1px solid ${accent || "#2a2a3a"}`,
+                background: "var(--surface)",
+                border: `1px solid ${accent || "var(--border)"}`,
                 borderRadius: "16px",
                 padding: "20px",
                 marginBottom: "16px",
@@ -26,7 +26,7 @@ export default function Section({ title, icon, children, accent }) {
                         fontSize: "15px",
                         fontFamily: "'Playfair Display', serif",
                         fontWeight: 600,
-                        color: accent || "#c9b8ff",
+                        color: accent || "var(--heading)",
                         letterSpacing: "0.02em",
                         textTransform: "uppercase",
                     }}

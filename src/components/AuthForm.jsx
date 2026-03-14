@@ -24,7 +24,7 @@ export default function AuthForm({ mode, onSubmit }) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    style={{ padding: 8, borderRadius: 6, border: "1px solid #2a2a3a", background: "#0e0e16", color: "#e8e8f0" }}
+                    style={{ padding: 8, borderRadius: 6, border: "1px solid var(--input-border)", background: "var(--input-bg)", color: "var(--input-text)" }}
                 />
             )}
             {!isForgot && (
@@ -35,7 +35,7 @@ export default function AuthForm({ mode, onSubmit }) {
                     onChange={(e) => setPass(e.target.value)}
                     required
                     minLength={8}
-                    style={{ padding: 8, borderRadius: 6, border: "1px solid #2a2a3a", background: "#0e0e16", color: "#e8e8f0" }}
+                    style={{ padding: 8, borderRadius: 6, border: "1px solid var(--input-border)", background: "var(--input-bg)", color: "var(--input-text)" }}
                 />
             )}
             {isReset && (
@@ -46,10 +46,10 @@ export default function AuthForm({ mode, onSubmit }) {
                     onChange={(e) => setConfirmPass(e.target.value)}
                     required
                     minLength={8}
-                    style={{ padding: 8, borderRadius: 6, border: "1px solid #2a2a3a", background: "#0e0e16", color: "#e8e8f0" }}
+                    style={{ padding: 8, borderRadius: 6, border: "1px solid var(--input-border)", background: "var(--input-bg)", color: "var(--input-text)" }}
                 />
             )}
-            <button type="submit" style={{ padding: 8, borderRadius: 6, background: "#4ade80", color: "#0a0a10", fontWeight: 600, cursor: "pointer" }}>
+            <button type="submit" style={{ padding: 8, borderRadius: 6, background: "var(--accent-primary)", color: "var(--surface)", fontWeight: 600, cursor: "pointer" }}>
                 {isLogin && "Sign in"}
                 {isRegister && "Create account"}
                 {isForgot && "Send reset email"}

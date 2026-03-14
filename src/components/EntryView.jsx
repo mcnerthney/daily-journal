@@ -13,18 +13,18 @@ export default function EntryView({ entry, date, onEdit }) {
         { label: `🏋️ ${entry.workouts ? Object.values(entry.workouts).filter(v => v > 0).length : 0}`, active: entry.workouts && Object.values(entry.workouts).some(v => v > 0) },
     ];
     return (
-        <div style={{ background: "#0e0e16", border: "1px solid #2a2a3a", borderRadius: "14px", padding: "18px", marginBottom: "12px" }}>
+        <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "14px", padding: "18px", marginBottom: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                 <div>
-                    <div style={{ fontSize: "13px", color: "#888", marginBottom: "4px" }}>{formatDate(date)}</div>
+                    <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>{formatDate(date)}</div>
                     {mood && <div style={{ display: "flex", alignItems: "center", gap: "6px", color: mood.color, fontWeight: 600, fontSize: "14px" }}><span style={{ fontSize: "18px" }}>{mood.emoji}</span>{mood.label}</div>}
                     {(entry.systolic || entry.diastolic) && (
-                        <div style={{ marginTop: "4px", fontSize: "12px", color: "#aaa" }}>🩺 {entry.systolic || "--"}/{entry.diastolic || "--"}</div>
+                        <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--muted)" }}>🩺 {entry.systolic || "--"}/{entry.diastolic || "--"}</div>
                     )}
                 </div>
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
                     {counts.map((b, i) => (
-                        <span key={i} style={{ padding: "3px 10px", borderRadius: "10px", background: b.active ? "#6d5acd22" : "#1a1a26", color: b.active ? "#c9b8ff" : "#444", fontSize: "12px" }}>{b.label}</span>
+                        <span key={i} style={{ padding: "3px 10px", borderRadius: "10px", background: b.active ? "var(--ring-soft)" : "var(--surface-alt)", color: b.active ? "var(--heading)" : "var(--muted-strong)", fontSize: "12px" }}>{b.label}</span>
                     ))}
                     {onEdit && (
                         <button
@@ -32,7 +32,7 @@ export default function EntryView({ entry, date, onEdit }) {
                             style={{
                                 background: "none",
                                 border: "none",
-                                color: "#4ade80",
+                                color: "var(--accent-primary)",
                                 cursor: "pointer",
                                 fontSize: "12px",
                             }}
@@ -42,9 +42,9 @@ export default function EntryView({ entry, date, onEdit }) {
                     )}
                 </div>
             </div>
-            {entry.food_notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.food_notes}</p>}
+            {entry.food_notes && <p style={{ margin: 0, color: "var(--muted)", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "10px" }}>{entry.food_notes}</p>}
             {entry.workouts && Object.values(entry.workouts).some(v => v > 0) && (
-                <div style={{ marginTop: "8px", color: "#ddd", fontSize: "13px" }}>
+                <div style={{ marginTop: "8px", color: "var(--muted-strong)", fontSize: "13px" }}>
                     {WORKOUTS.map(w => {
                         const val = entry.workouts && entry.workouts[w.key];
                         return val > 0 ? <div key={w.key}>{w.emoji} {w.label}: {val}</div> : null;
@@ -52,7 +52,7 @@ export default function EntryView({ entry, date, onEdit }) {
                 </div>
             )}
 
-            {entry.notes && <p style={{ margin: 0, color: "#aaa", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid #2a2a3a", paddingTop: "10px" }}>{entry.notes}</p>}
+            {entry.notes && <p style={{ margin: 0, color: "var(--muted)", fontSize: "13px", lineHeight: 1.6, fontStyle: "italic", borderTop: "1px solid var(--border)", paddingTop: "10px" }}>{entry.notes}</p>}
         </div>
     );
 }

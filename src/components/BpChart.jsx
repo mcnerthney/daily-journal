@@ -9,7 +9,7 @@ export default function BpChart({ entries }) {
             const dia = entries[date]?.diastolic;
             return (sys != null && sys > 0) || (dia != null && dia > 0);
         });
-    if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No data</div>;
+    if (dates.length === 0) return <div style={{ textAlign: 'center', color: 'var(--muted)' }}>No data</div>;
 
 
 
@@ -33,7 +33,7 @@ export default function BpChart({ entries }) {
 
     const width = 200, height = 240, padding = 40;
     const xAxisLabelOffset = 16;
-    const colors = { systolic: '#fb923c', diastolic: '#4ade80' };
+    const colors = { systolic: 'var(--accent-med)', diastolic: 'var(--accent-primary)' };
     const indexDenominator = Math.max(dates.length - 1, 1);
 
     const getXForIndex = (i) => padding + (i / indexDenominator) * (width - 2 * padding);
@@ -76,7 +76,7 @@ export default function BpChart({ entries }) {
 
     return (
         <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
-            <h3 style={{ fontSize: '16px', color: '#c9b8ff', marginBottom: '8px' }}>Blood Pressure</h3>
+            <h3 style={{ fontSize: '16px', color: 'var(--heading)', marginBottom: '8px' }}>Blood Pressure</h3>
             <svg
                 width={width}
                 height={height}
@@ -87,13 +87,13 @@ export default function BpChart({ entries }) {
                 }}
                 onMouseLeave={() => setHoverIndex(null)}
             >
-                <rect width="100%" height="100%" fill="#12121a" />
+                <rect width="100%" height="100%" fill="var(--surface)" />
                 <line
                     x1={padding}
                     y1={line130Y}
                     x2={width - padding}
                     y2={line130Y}
-                    stroke="#fdba74"
+                    stroke="var(--accent-med)"
                     strokeWidth="1"
                     strokeDasharray="4 4"
                     opacity="0.7"
@@ -103,7 +103,7 @@ export default function BpChart({ entries }) {
                     y1={line80Y}
                     x2={width - padding}
                     y2={line80Y}
-                    stroke="#86efac"
+                    stroke="var(--accent-primary)"
                     strokeWidth="1"
                     strokeDasharray="4 4"
                     opacity="0.7"
@@ -139,7 +139,7 @@ export default function BpChart({ entries }) {
                 {dates.map((date, i) => {
                     const x = getXForIndex(i);
                     return (
-                        <text key={i} x={x} y={height - padding + xAxisLabelOffset} fontSize="12" fill="#888" textAnchor="middle">
+                        <text key={i} x={x} y={height - padding + xAxisLabelOffset} fontSize="12" fill="var(--muted)" textAnchor="middle">
                             {formatLocalDateLabel(date)}
                         </text>
                     );
@@ -150,7 +150,7 @@ export default function BpChart({ entries }) {
                         y1={padding}
                         x2={hoverX}
                         y2={height - padding}
-                        stroke="#6b7280"
+                        stroke="var(--muted)"
                         strokeDasharray="4 4"
                         strokeWidth="1"
                     />

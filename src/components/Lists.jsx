@@ -15,9 +15,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
-        background: "#161622",
-        color: "#e8e8f0",
-        border: "1px solid #34344a",
+        background: "var(--input-bg)",
+        color: "var(--input-text)",
+        border: "1px solid var(--input-border)",
         borderRadius: "6px",
     };
 
@@ -220,12 +220,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             <div style={{ minHeight: "calc(100vh - 180px)", display: "grid", gap: "12px" }}>
                 <button
                     onClick={backToLists}
-                    style={{ justifySelf: "start", background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                    style={{ justifySelf: "start", background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer", fontSize: "14px", padding: 0 }}
                 >
                     ← Back to lists
                 </button>
-                <div style={{ color: "#888" }}>Loading list...</div>
-                {error && <div style={{ color: "#ef4444" }}>{error}</div>}
+                <div style={{ color: "var(--muted)" }}>Loading list...</div>
+                {error && <div style={{ color: "var(--error)" }}>{error}</div>}
             </div>
         );
     }
@@ -243,11 +243,11 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             fontSize: "22px",
                             padding: "10px 12px",
                             opacity: isOwner ? 1 : 0.7,
-                            background: isOwner ? inputStyle.background : "#1a1a23",
+                            background: isOwner ? inputStyle.background : "var(--surface-soft)",
                         }}
                     />
                     {selected.ownerEmail && (
-                        <div style={{ fontSize: "12px", color: "#888" }}>
+                        <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                             Owner: {selected.ownerEmail}
                         </div>
                     )}
@@ -287,8 +287,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             width: "36px",
                             height: "36px",
                             borderRadius: "6px",
-                            border: `2px dashed ${trashOver ? "#ef4444" : "#555"}`,
-                            background: trashOver ? "#ef444422" : "transparent",
+                            border: `2px dashed ${trashOver ? "var(--error)" : "var(--muted)"}`,
+                            background: trashOver ? "var(--error-soft)" : "transparent",
                             fontSize: "18px",
                             flexShrink: 0,
                             transition: "all 0.15s",
@@ -325,11 +325,11 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                 alignItems: "center",
                                 gap: "8px",
                                 marginBottom: "8px",
-                                borderTop: dragOverIndex === idx ? "2px solid #6d5acd" : "2px solid transparent",
+                                borderTop: dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
                             }}
                         >
                             <span
-                                style={{ cursor: "grab", color: "#555", userSelect: "none", fontSize: "18px", lineHeight: 1 }}
+                                style={{ cursor: "grab", color: "var(--muted)", userSelect: "none", fontSize: "18px", lineHeight: 1 }}
                                 title="Drag to reorder"
                             >
                                 ⠿
@@ -345,7 +345,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                     ...inputStyle,
                                     flex: 1,
                                     padding: "6px",
-                                    color: it.done ? "#888" : "#e8e8f0",
+                                    color: it.done ? "var(--muted)" : "var(--text)",
                                     //textDecoration: it.done ? "line-through" : "none",
                                 }}
                             />
@@ -382,12 +382,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                 </div>
                                 {selected.publicSlug && (
                                     <div>
-                                        Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "#c0c0c0", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
+                                        Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
                                     </div>
                                 )}
                                 {selected.publicId && (
                                     <div>
-                                        UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "#c0c0c0", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
+                                        UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
                                     </div>
                                 )}
                             </div>
@@ -395,16 +395,16 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     </div>
                 )}
                 {isOwner && (
-                    <button onClick={deleteCurrent} style={{ marginTop: "24px", width: "fit-content", background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "10px", color: "#ef4444", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Delete list</button>
+                    <button onClick={deleteCurrent} style={{ marginTop: "24px", width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Delete list</button>
                 )}
-                {error && <div style={{ color: "#ef4444", marginTop: "12px" }}>{error}</div>}
+                {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
             </div>
         );
     }
 
     return (
         <div>
-            <h2 style={{ fontFamily: "'Playfair Display', serif", color: "#c9b8ff" }}>Lists</h2>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Lists</h2>
             <h3>Your lists</h3>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                 {lists.map(l => (
@@ -414,10 +414,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             style={{
                                 width: "100%",
                                 textAlign: "left",
-                                background: "#12121a",
-                                border: "1px solid #2a2a3a",
+                                background: "var(--surface)",
+                                border: "1px solid var(--border)",
                                 borderRadius: "10px",
-                                color: "#c9b8ff",
+                                color: "var(--heading)",
                                 cursor: "pointer",
                                 padding: "12px",
                                 fontSize: "14px",
@@ -442,7 +442,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                 </div>
                 <button onClick={saveNewList} style={{ marginTop: "8px" }}>Create</button>
             </div>
-            {error && <div style={{ color: "#ef4444", marginTop: "12px" }}>{error}</div>}
+            {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
         </div>
     );
 }

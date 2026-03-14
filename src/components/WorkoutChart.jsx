@@ -3,10 +3,10 @@ import { WORKOUTS } from "../data";
 
 export default function WorkoutChart({ entries }) {
     const dates = Object.keys(entries).sort();
-    if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No workout data</div>;
+    if (dates.length === 0) return <div style={{ textAlign: 'center', color: 'var(--muted)' }}>No workout data</div>;
 
     const width = 300, height = 160, padding = 24; // narrower for mobile
-    const colors = ["#4ade80", "#fb923c", "#fcd34d", "#38bdf8", "#a78bfa"];
+    const colors = ["var(--accent-primary)", "var(--accent-med)", "var(--accent-workout)", "var(--accent-hygiene)", "var(--accent-note)"];
 
     // helper for single series (returns arr, pts, path, max)
     const buildSeries = (key) => {
@@ -38,7 +38,7 @@ export default function WorkoutChart({ entries }) {
                         </div>
                         <div style={{ position: 'relative' }}>
                             <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ display: 'block' }}>
-                                <rect width="100%" height="100%" fill="#12121a" />
+                                <rect width="100%" height="100%" fill="var(--surface)" />
                                 <path d={path} fill="none" stroke={color} strokeWidth="2" />
                                 {pts.map((p, i) => (
                                     <circle key={i} cx={p[0]} cy={p[1]} r={4} fill={color}>
@@ -48,13 +48,13 @@ export default function WorkoutChart({ entries }) {
                                 {dates.map((date, i) => {
                                     const x = padding + (i / (dates.length - 1)) * (width - 2 * padding);
                                     return (
-                                        <text key={i} x={x} y={height - padding + 12} fontSize="8" fill="#888" textAnchor="middle">
+                                        <text key={i} x={x} y={height - padding + 12} fontSize="8" fill="var(--muted)" textAnchor="middle">
                                             {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                                         </text>
                                     );
                                 })}
                                 {Array.from({ length: max + 1 }).map((_, i) => (
-                                    <text key={i} x={padding - 8} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 3} fontSize="8" fill="#888" textAnchor="end">
+                                    <text key={i} x={padding - 8} y={height - padding - (max ? (i / max) * (height - 2 * padding) : 0) + 3} fontSize="8" fill="var(--muted)" textAnchor="end">
                                         {i}
                                     </text>
                                 ))}

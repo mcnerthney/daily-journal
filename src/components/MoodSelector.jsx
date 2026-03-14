@@ -15,8 +15,8 @@ export default function MoodSelector({ value, onChange }) {
                         gap: "4px",
                         padding: "12px 16px",
                         borderRadius: "14px",
-                        border: value === m.value ? `2px solid ${m.color}` : "2px solid #2a2a3a",
-                        background: value === m.value ? m.color + "22" : "#16161f",
+                        border: value === m.value ? `2px solid ${m.color}` : "2px solid var(--border)",
+                        background: value === m.value ? m.color + "22" : "var(--surface-alt)",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
                         minWidth: "60px",
@@ -27,7 +27,7 @@ export default function MoodSelector({ value, onChange }) {
                     <span
                         style={{
                             fontSize: "11px",
-                            color: value === m.value ? m.color : "#555",
+                            color: value === m.value ? m.color : "var(--muted)",
                             fontWeight: 500,
                         }}
                     >

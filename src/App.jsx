@@ -38,6 +38,12 @@ const FEATURES = [
   // additional features can be added here later
 ];
 
+const THEMES = [
+  { key: "light", label: "Light" },
+  { key: "dark", label: "Dark" },
+  { key: "festive", label: "Festive" },
+];
+
 // auth helper methods
 async function doLogin(email, password) {
   const res = await fetch(`${API}/login`, {
@@ -95,6 +101,7 @@ async function doConfirmPasswordReset(token, password) {
 export default function App() {
   const defaultTitle = "Notebook";
   const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
@@ -231,6 +238,12 @@ export default function App() {
       localStorage.removeItem("token");
     }
   }, [token]);
+
+  useEffect(() => {
+    const valid = THEMES.some((t) => t.key === theme) ? theme : "light";
+    localStorage.setItem("theme", valid);
+    document.documentElement.setAttribute("data-theme", valid);
+  }, [theme]);
   const [entries, setEntries] = useState({});
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("idle");
@@ -417,8 +430,18 @@ export default function App() {
   const activeScore = score(activeEntry);
   const scorePct = Math.round((activeScore / maxScore) * 100);
 
-  const inputStyle = { background: "#0e0e16", border: "1px solid #2a2a3a", borderRadius: "10px", padding: "8px 12px", color: "#e8e8f0", fontSize: "13px", outline: "none" };
+  const inputStyle = { background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: "10px", padding: "8px 12px", color: "var(--input-text)", fontSize: "13px", outline: "none" };
   const textareaStyle = { ...inputStyle, width: "100%", resize: "vertical", lineHeight: 1.6 };
+  const themeSelectStyle = {
+    background: "var(--surface)",
+    color: "var(--header-text)",
+    border: "1px solid var(--header-border)",
+    borderRadius: "10px",
+    padding: "7px 10px",
+    fontSize: "12px",
+    fontWeight: 600,
+    cursor: "pointer",
+  };
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const logout = () => {
@@ -431,23 +454,23 @@ export default function App() {
   if (publicListKey) {
     const visiblePublicItems = (publicList?.items || []).filter((it) => !it.done);
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px" }}>
+      <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: "40px" }}>
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", paddingBottom: "40px" }}>{publicList.name}</h1>
             <ul style={{ listStyle: "none", padding: 0 }}>
               {visiblePublicItems.map((it, idx) => (
                 <li key={idx} style={{ marginBottom: "6px" }}>
-                  <span style={{ color: it.done ? "#888" : "#e8e8f0" }}>{it.text}</span>
+                  <span style={{ color: it.done ? "var(--muted)" : "var(--text)" }}>{it.text}</span>
                 </li>
               ))}
             </ul>
-            <div style={{ marginTop: "20px", fontSize: "12px", color: "#888" }}>
+            <div style={{ marginTop: "20px", fontSize: "12px", color: "var(--muted)" }}>
               {visiblePublicItems.length === 0 && "(empty list)"}
             </div>
           </div>
         ) : (
-          <div style={{ textAlign: "center", marginTop: "80px", color: "#555" }}>
+          <div style={{ textAlign: "center", marginTop: "80px", color: "var(--muted)" }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>⏳</div>
           </div>
         )}
@@ -460,12 +483,17 @@ export default function App() {
   if (appView === "home") {
     // home/feature picker, with auth embedded
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px 16px" }}>
-        <h2 style={{ textAlign: "center", fontFamily: "'Playfair Display', serif", color: "#c9b8ff" }}>Welcome</h2>
+      <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: "40px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+          <select value={theme} onChange={(e) => setTheme(e.target.value)} style={themeSelectStyle}>
+            {THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+          </select>
+        </div>
+        <h2 style={{ textAlign: "center", fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Welcome</h2>
 
         {!token ? (
-          <div style={{ maxWidth: 300, margin: "24px auto", background: "#12121a", padding: 24, borderRadius: 12 }}>
-            <h2 style={{ marginBottom: 16, color: "#c9b8ff", textAlign: "center" }}>
+          <div style={{ maxWidth: 300, margin: "24px auto", background: "var(--surface)", border: "1px solid var(--border)", padding: 24, borderRadius: 12 }}>
+            <h2 style={{ marginBottom: 16, color: "var(--heading)", textAlign: "center" }}>
               {authMode === "login" && "Sign In"}
               {authMode === "register" && "Register"}
               {authMode === "forgot" && "Reset Password"}
@@ -504,32 +532,32 @@ export default function App() {
             <div style={{ marginTop: 12, textAlign: "center" }}>
               {authMode === "login" && (
                 <>
-                  <button onClick={() => { setAuthMode("register"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", marginRight: "10px" }}>
+                  <button onClick={() => { setAuthMode("register"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer", marginRight: "10px" }}>
                     Need an account?
                   </button>
-                  <button onClick={() => { setAuthMode("forgot"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#fcd34d", cursor: "pointer" }}>
+                  <button onClick={() => { setAuthMode("forgot"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "var(--accent-warn)", cursor: "pointer" }}>
                     Forgot password?
                   </button>
                 </>
               )}
               {authMode === "register" && (
-                <button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                <button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer" }}>
                   Have an account?
                 </button>
               )}
               {authMode === "forgot" && (
-                <button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                <button onClick={() => { setAuthMode("login"); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer" }}>
                   Back to sign in
                 </button>
               )}
               {authMode === "reset" && (
-                <button onClick={() => { setAuthMode("login"); setResetToken(""); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer" }}>
+                <button onClick={() => { setAuthMode("login"); setResetToken(""); setAuthError(""); setAuthMessage(""); }} style={{ background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer" }}>
                   Back to sign in
                 </button>
               )}
             </div>
-            {authError && <div style={{ color: "#ef4444", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authError}</div>}
-            {authMessage && <div style={{ color: "#4ade80", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authMessage}</div>}
+            {authError && <div style={{ color: "var(--error)", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authError}</div>}
+            {authMessage && <div style={{ color: "var(--accent-primary)", marginTop: 8, fontSize: 13, textAlign: "center" }}>{authMessage}</div>}
           </div>
         ) : (
           <>
@@ -541,14 +569,14 @@ export default function App() {
                     navigateToRoute(f.key);
                     if (f.key === "journal") setActiveDate(today);
                   }}
-                  style={{ padding: "16px", borderRadius: "12px", background: "#6d5acd22", border: "1px solid #6d5acd", color: "#c9b8ff", fontSize: "16px", cursor: "pointer" }}
+                  style={{ padding: "16px", borderRadius: "12px", background: "var(--surface-soft)", border: "1px solid var(--ring)", color: "var(--heading)", fontSize: "16px", cursor: "pointer" }}
                 >
                   {f.emoji} {f.label}
                 </button>
               ))}
             </div>
             <div style={{ textAlign: "center", marginTop: "40px" }}>
-              <button onClick={logout} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+              <button onClick={logout} style={{ background: "none", border: "none", color: "var(--error)", cursor: "pointer" }}>
                 Log out
               </button>
             </div>
@@ -560,9 +588,9 @@ export default function App() {
 
   if (appView !== "journal" && appView !== "lists") {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0", padding: "40px", textAlign: "center" }}>
-        <h2 style={{ color: "#c9b8ff" }}>Feature "{appView}" not available yet</h2>
-        <button onClick={() => navigateToRoute("")} style={{ marginTop: "24px", padding: "8px 16px", borderRadius: "8px", border: "1px solid #6d5acd", background: "#6d5acd22", color: "#c9b8ff", cursor: "pointer" }}>
+      <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: "40px", textAlign: "center" }}>
+        <h2 style={{ color: "var(--heading)" }}>Feature "{appView}" not available yet</h2>
+        <button onClick={() => navigateToRoute("")} style={{ marginTop: "24px", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--ring)", background: "var(--surface-soft)", color: "var(--heading)", cursor: "pointer" }}>
           ← Back to home
         </button>
       </div>
@@ -570,7 +598,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a10", color: "#e8e8f0" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
       <style>{`
         @keyframes pulse {
           0%,100% { opacity:1; }
@@ -579,39 +607,39 @@ export default function App() {
       `}</style>
 
       {/* Header */}
-      <div style={{ background: "linear-gradient(135deg,#12121e 0%,#1a1228 100%)", borderBottom: "1px solid #2a2a3a", padding: "20px 24px", position: "sticky", top: 0, zIndex: 100 }}>
+      <div style={{ background: "linear-gradient(135deg,var(--header-grad-start) 0%,var(--header-grad-end) 100%)", borderBottom: "1px solid var(--header-border)", padding: "20px 24px", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: "680px", margin: "0 auto" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                 {appView === "home" ? (
-                  <h1 style={{ margin: 0, fontSize: "22px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "#ffffff" }}>
+                  <h1 style={{ margin: 0, fontSize: "22px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--header-text)" }}>
                     Notebook
                   </h1>
                 ) : (
                   <>
                     <button
                       onClick={() => { navigateToRoute(""); setView("today"); setActiveDate(today); }}
-                      style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                      style={{ background: "none", border: "none", color: "var(--header-text)", cursor: "pointer", fontSize: "14px", padding: 0 }}
                     >
                       Home
                     </button>
-                    <span style={{ color: "#ffffff", fontSize: "14px" }}>/</span>
+                    <span style={{ color: "var(--header-text)", fontSize: "14px" }}>/</span>
                     {isListEditor ? (
                       <>
                         <button
                           onClick={() => navigateToRoute("lists")}
-                          style={{ background: "none", border: "none", color: "#ffffff", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                          style={{ background: "none", border: "none", color: "var(--header-text)", cursor: "pointer", fontSize: "14px", padding: 0 }}
                         >
                           Lists
                         </button>
-                        <span style={{ color: "#ffffff", fontSize: "14px" }}>/</span>
-                        <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "#ffffff" }}>
+                        <span style={{ color: "var(--header-text)", fontSize: "14px" }}>/</span>
+                        <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--header-text)" }}>
                           List Editor
                         </h1>
                       </>
                     ) : (
-                      <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "#ffffff" }}>
+                      <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--header-text)" }}>
                         {featureTitle || "Notebook"}
                       </h1>
                     )}
@@ -620,18 +648,20 @@ export default function App() {
                 <SaveIndicator status={saveStatus} />
               </div>
             </div>
-            {appView === "journal" && (
-              <div style={{ display: "flex", gap: "8px" }}>
-                {["today", "history", "chart"].map(v => (
-                  <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid #ffffff" : "1px solid #2a2a3a", background: view === v ? "#ffffff22" : "transparent", color: "#ffffff", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
-                    {v === "chart" ? "Stats" : v}
-                  </button>
-                ))}
-              </div>
-            )}
-            <button onClick={logout} style={{ marginLeft: "12px", padding: "7px 16px", borderRadius: "10px", border: "1px solid #ffffff", background: "#ffffff22", color: "#ffffff", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>
-              Log out
-            </button>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              {appView === "journal" && (
+                <>
+                  {["today", "history", "chart"].map(v => (
+                    <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid var(--header-btn-border)" : "1px solid var(--header-border)", background: view === v ? "var(--header-btn-bg)" : "transparent", color: "var(--header-btn-text)", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
+                      {v === "chart" ? "Stats" : v}
+                    </button>
+                  ))}
+                </>
+              )}
+              <button onClick={logout} style={{ marginLeft: "4px", padding: "7px 16px", borderRadius: "10px", border: "1px solid var(--header-btn-border)", background: "var(--header-btn-bg)", color: "var(--header-btn-text)", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>
+                Log out
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -647,13 +677,13 @@ export default function App() {
             onCloseList={() => navigateToRoute("lists")}
           />
         ) : loading ? (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "#555" }}>
+          <div style={{ textAlign: "center", padding: "80px 0", color: "var(--muted)" }}>
             <div style={{ fontSize: "32px", marginBottom: "12px" }}>📓</div>
             <div>Loading your journal…</div>
           </div>
         ) : view === "today" ? (
           <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", fontSize: "13px", color: "#ccc" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", fontSize: "13px", color: "var(--muted-strong)" }}>
               <span>{activeDateLabel}</span>
               {activeDate !== today && (
                 <button
@@ -661,7 +691,7 @@ export default function App() {
                   style={{
                     background: "none",
                     border: "none",
-                    color: "#ffffff",
+                    color: "var(--heading)",
                     cursor: "pointer",
                     fontSize: "12px",
                     padding: 0,
@@ -672,21 +702,21 @@ export default function App() {
               )}
             </div>
             <div style={{ marginBottom: "14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#ffffff", marginBottom: "4px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--heading)", marginBottom: "4px" }}>
                 <span>Wellness score</span>
-                <span style={{ color: "#ffffff", fontWeight: 600 }}>{scorePct}%</span>
+                <span style={{ color: "var(--heading)", fontWeight: 600 }}>{scorePct}%</span>
               </div>
-              <ScoreBar score={activeScore} max={maxScore} color={scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#6d5acd"} />
+              <ScoreBar score={activeScore} max={maxScore} color={scorePct > 60 ? "var(--accent-primary)" : scorePct > 30 ? "var(--accent-warn)" : "var(--ring)"} />
             </div>
-            <Section title="How are you feeling?" icon="💭" accent="#c9b8ff">
+            <Section title="How are you feeling?" icon="💭" accent="var(--heading)">
               <MoodSelector value={activeEntry.mood || null} onChange={v => updateEntry({ mood: v })} />
 
             </Section>
 
-            <Section title="Medication" icon="💊" accent="#fb923c">
+            <Section title="Medication" icon="💊" accent="var(--accent-med)">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                 {[...MEDICATIONS, ...(activeEntry.customMeds || [])].map(med => (
-                  <ToggleChip key={med} label={med} emoji="💊" checked={(activeEntry.medications || []).includes(med)} onChange={() => toggle("medications", med)} color="#fb923c" />
+                  <ToggleChip key={med} label={med} emoji="💊" checked={(activeEntry.medications || []).includes(med)} onChange={() => toggle("medications", med)} color="var(--accent-med)" />
                 ))}
               </div>
               <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
@@ -694,17 +724,17 @@ export default function App() {
                   onKeyDown={e => { if (e.key === "Enter" && customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(activeEntry.customMeds || []), l], medications: [...(activeEntry.medications || []), l] }); setCustomMedInput(""); } }}
                 />
                 <button onClick={() => { if (customMedInput.trim()) { const l = customMedInput.trim(); updateEntry({ customMeds: [...(activeEntry.customMeds || []), l], medications: [...(activeEntry.medications || []), l] }); setCustomMedInput(""); } }}
-                  style={{ padding: "8px 16px", borderRadius: "10px", border: "1px solid #fb923c", background: "#fb923c22", color: "#fb923c", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
+                  style={{ padding: "8px 16px", borderRadius: "10px", border: "1px solid var(--accent-med)", background: "var(--accent-med-soft)", color: "var(--accent-med)", cursor: "pointer", fontSize: "13px", fontWeight: 600 }}>
                   Add
                 </button>
               </div>
             </Section>
 
 
-            <Section title="Blood Pressure" icon="🩺" accent="#f472b6">
+            <Section title="Blood Pressure" icon="🩺" accent="var(--muted)">
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Systolic</label>
+                  <label style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Systolic</label>
                   <input
                     type="number"
                     min="0"
@@ -714,7 +744,7 @@ export default function App() {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <label style={{ fontSize: "12px", color: "#888", marginBottom: "4px" }}>Diastolic</label>
+                  <label style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Diastolic</label>
                   <input
                     type="number"
                     min="0"
@@ -727,30 +757,30 @@ export default function App() {
             </Section>
 
 
-            <Section title="Nutrition" icon="🥗" accent="#4ade80">
+            <Section title="Nutrition" icon="🥗" accent="var(--accent-food)">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-                {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(activeEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="#4ade80" />)}
+                {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(activeEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="var(--accent-food)" />)}
               </div>
               <textarea spellCheck={true} placeholder={`What did you eat ${activeDatePromptTarget}?`} value={activeEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
             </Section>
 
-            <Section title="Personal Hygiene" icon="🚿" accent="#38bdf8">
+            <Section title="Personal Hygiene" icon="🚿" accent="var(--accent-hygiene)">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {HYGIENE.map(h => <ToggleChip key={h.key} label={h.label} emoji={h.emoji} checked={!!(activeEntry.hygiene || {})[h.key]} onChange={() => toggleObj("hygiene", h.key)} color="#38bdf8" />)}
+                {HYGIENE.map(h => <ToggleChip key={h.key} label={h.label} emoji={h.emoji} checked={!!(activeEntry.hygiene || {})[h.key]} onChange={() => toggleObj("hygiene", h.key)} color="var(--accent-hygiene)" />)}
               </div>
             </Section>
 
-            <Section title="House Cleaning" icon="🏠" accent="#f472b6">
+            <Section title="House Cleaning" icon="🏠" accent="var(--accent-clean)">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {CLEANING.map(c => <ToggleChip key={c.key} label={c.label} emoji={c.emoji} checked={!!(activeEntry.cleaning || {})[c.key]} onChange={() => toggleObj("cleaning", c.key)} color="#f472b6" />)}
+                {CLEANING.map(c => <ToggleChip key={c.key} label={c.label} emoji={c.emoji} checked={!!(activeEntry.cleaning || {})[c.key]} onChange={() => toggleObj("cleaning", c.key)} color="var(--accent-clean)" />)}
               </div>
             </Section>
 
-            <Section title="Workouts" icon="🏋️" accent="#fcd34d">
+            <Section title="Workouts" icon="🏋️" accent="var(--accent-workout)">
               <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
                 {WORKOUTS.map(w => (
                   <div key={w.key} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <span style={{ fontSize: "13px", color: "#ccc" }}>{w.emoji}</span>
+                    <span style={{ fontSize: "13px", color: "var(--muted-strong)" }}>{w.emoji}</span>
                     <input
                       type="number"
                       min="0"
@@ -763,26 +793,26 @@ export default function App() {
                       })}
                       style={{ ...inputStyle, width: "60px", textAlign: "center" }}
                     />
-                    <span style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>{w.label}</span>
+                    <span style={{ fontSize: "11px", color: "var(--muted)", marginTop: "4px" }}>{w.label}</span>
                   </div>
                 ))}
               </div>
             </Section>
 
-            <Section title="Journal Notes" icon="📝" accent="#a78bfa">
+            <Section title="Journal Notes" icon="📝" accent="var(--accent-note)">
               <textarea spellCheck={true} placeholder={`How did ${activeDatePromptTarget} go? Anything on your mind…`} value={activeEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
             </Section>
 
-            <div style={{ background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "16px", padding: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "16px", padding: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               {[
-                { label: "Medications taken", val: (activeEntry.medications || []).length, max: MEDICATIONS.length, color: "#fb923c" },
-                { label: "Meals logged", val: (activeEntry.food || []).length, max: FOODS.length, color: "#4ade80" },
-                { label: "Hygiene tasks", val: Object.values(activeEntry.hygiene || {}).filter(Boolean).length, max: HYGIENE.length, color: "#38bdf8" },
-                { label: "Cleaning tasks", val: Object.values(activeEntry.cleaning || {}).filter(Boolean).length, max: CLEANING.length, color: "#f472b6" },
-                { label: "Workouts done", val: activeEntry.workouts ? Object.values(activeEntry.workouts).filter(v => v > 0).length : 0, max: WORKOUTS.length, color: "#fcd34d" },
+                { label: "Medications taken", val: (activeEntry.medications || []).length, max: MEDICATIONS.length, color: "var(--accent-med)" },
+                { label: "Meals logged", val: (activeEntry.food || []).length, max: FOODS.length, color: "var(--accent-food)" },
+                { label: "Hygiene tasks", val: Object.values(activeEntry.hygiene || {}).filter(Boolean).length, max: HYGIENE.length, color: "var(--accent-hygiene)" },
+                { label: "Cleaning tasks", val: Object.values(activeEntry.cleaning || {}).filter(Boolean).length, max: CLEANING.length, color: "var(--accent-clean)" },
+                { label: "Workouts done", val: activeEntry.workouts ? Object.values(activeEntry.workouts).filter(v => v > 0).length : 0, max: WORKOUTS.length, color: "var(--accent-workout)" },
               ].map(s => (
                 <div key={s.label}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted)" }}>
                     <span>{s.label}</span><span style={{ color: s.color, fontWeight: 600 }}>{s.val}/{s.max}</span>
                   </div>
                   <ScoreBar score={s.val} max={s.max} color={s.color} />
@@ -793,23 +823,23 @@ export default function App() {
         ) : view === "chart" ? (
           <>
             <BpChart entries={entries} />
-            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "#c9b8ff", marginBottom: "20px" }}>Workout Trends</h2>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "var(--heading)", marginBottom: "20px" }}>Workout Trends</h2>
             <WorkoutChart entries={entries} />
           </>
         ) : (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-              <h2 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "#c9b8ff" }}>Past Entries</h2>
-              <span style={{ color: "#666", fontSize: "13px" }}>{sortedDates.length} day{sortedDates.length !== 1 ? "s" : ""} logged</span>
+              <h2 style={{ margin: 0, fontFamily: "'Playfair Display', serif", fontSize: "18px", color: "var(--heading)" }}>Past Entries</h2>
+              <span style={{ color: "var(--muted-strong)", fontSize: "13px" }}>{sortedDates.length} day{sortedDates.length !== 1 ? "s" : ""} logged</span>
             </div>
             {sortedDates.length === 0
-              ? <div style={{ textAlign: "center", padding: "60px 20px", color: "#555", fontStyle: "italic" }}>No entries yet. Start tracking today!</div>
+              ? <div style={{ textAlign: "center", padding: "60px 20px", color: "var(--muted)", fontStyle: "italic" }}>No entries yet. Start tracking today!</div>
               : sortedDates.map(date => (
                 <div
                   key={date}
                   style={{
                     position: "relative",
-                    border: date === activeDate ? "2px solid #4ade80" : undefined,
+                    border: date === activeDate ? "2px solid var(--accent-primary)" : undefined,
                     borderRadius: "14px",
                   }}
                 >

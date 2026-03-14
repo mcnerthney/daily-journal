@@ -9,10 +9,10 @@ export default function LivePill({ connected, viewers }) {
                 gap: "6px",
                 padding: "4px 10px",
                 borderRadius: "20px",
-                background: connected ? "#0d2d1a" : "#2a1a1a",
-                border: `1px solid ${connected ? "#22c55e44" : "#ef444444"}`,
+                background: connected ? "var(--accent-primary-soft)" : "var(--error-soft)",
+                border: `1px solid ${connected ? "var(--accent-primary)" : "var(--error)"}`,
                 fontSize: "12px",
-                color: connected ? "#4ade80" : "#f87171",
+                color: connected ? "var(--accent-primary)" : "var(--error)",
                 transition: "all 0.3s",
             }}
         >
@@ -21,8 +21,8 @@ export default function LivePill({ connected, viewers }) {
                     width: "7px",
                     height: "7px",
                     borderRadius: "50%",
-                    background: connected ? "#22c55e" : "#ef4444",
-                    boxShadow: connected ? "0 0 6px #22c55e" : "none",
+                    background: connected ? "var(--accent-primary)" : "var(--error)",
+                    boxShadow: connected ? "0 0 6px var(--accent-primary)" : "none",
                     animation: connected ? "pulse 2s infinite" : "none",
                     flexShrink: 0,
                 }}

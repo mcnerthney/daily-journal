@@ -6,7 +6,7 @@ export default function ScoreBar({ score, max, color }) {
         <div
             style={{
                 height: "6px",
-                background: "#2a2a3a",
+                background: "var(--border)",
                 borderRadius: "3px",
                 overflow: "hidden",
                 marginTop: "6px",
@@ -16,7 +16,7 @@ export default function ScoreBar({ score, max, color }) {
                 style={{
                     height: "100%",
                     width: `${pct}%`,
-                    background: color || "#6d5acd",
+                    background: color || "var(--ring)",
                     borderRadius: "3px",
                     transition: "width 0.4s ease",
                 }}
