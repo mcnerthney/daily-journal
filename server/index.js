@@ -344,8 +344,13 @@ app.get("/api/entries", auth, async (req, res) => {
 app.get("/api/lists", auth, async (req, res) => {
   try {
     const userId = req.userId;
+    const includeArchived = req.query.includeArchived === "true";
+    const membershipFilter = { $or: [{ owner: userId }, { sharedWith: userId }] };
+    const query = includeArchived
+      ? membershipFilter
+      : { $and: [membershipFilter, { archived: { $ne: true } }] };
     const docs = await lists()
-      .find({ $or: [{ owner: userId }, { sharedWith: userId }] })
+      .find(query)
       .toArray();
 
     // enrich with owner email for UI display
@@ -427,7 +432,7 @@ app.post("/api/lists", auth, async (req, res) => {
 app.put("/api/lists/:id", auth, async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, items, shareWithEmails, public: isPublic } = req.body;
+    const { name, items, shareWithEmails, public: isPublic, archived } = req.body;
     const userId = req.userId;
     const filter = { _id: new ObjectId(id) };
     const existing = await lists().findOne(filter);
@@ -443,6 +448,9 @@ app.put("/api/lists/:id", auth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden" });
     }
     if (isPublic !== undefined && existing.owner !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (archived !== undefined && existing.owner !== userId) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
@@ -463,6 +471,15 @@ app.put("/api/lists/:id", auth, async (req, res) => {
         update.publicSlug = await generateUniquePublicSlug(slugSource, existing._id);
       }
       if (!isPublic) {
+        update.publicId = null;
+        update.publicSlug = null;
+      }
+    }
+    if (archived !== undefined) {
+      update.archived = !!archived;
+      update.archivedAt = archived ? new Date() : null;
+      if (archived) {
+        update.public = false;
         update.publicId = null;
         update.publicSlug = null;
       }
@@ -539,9 +556,17 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     const existing = await lists().findOne(filter);
     if (!existing) return res.json({ ok: true });
     if (existing.owner !== userId) return res.status(403).json({ error: "Forbidden" });
-    await lists().deleteOne(filter);
-    const recipients = [existing.owner, ...(existing.sharedWith || [])];
-    recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
+    const update = {
+      archived: true,
+      archivedAt: new Date(),
+      public: false,
+      publicId: null,
+      publicSlug: null,
+    };
+    await lists().updateOne(filter, { $set: update });
+    const archivedDoc = await lists().findOne(filter);
+    const recipients = [archivedDoc.owner, ...(archivedDoc.sharedWith || [])];
+    recipients.forEach(u => io.to(u).emit("list:updated", archivedDoc));
     if (existing.public && existing.publicId) {
       io.to(`public-list:id:${existing.publicId}`).emit("public-list:updated", {
         list: {
@@ -564,10 +589,10 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
         },
       });
     }
-    res.json({ ok: true });
+    res.json({ ok: true, archived: true, id });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete list" });
+    res.status(500).json({ error: "Failed to archive list" });
   }
 });
 

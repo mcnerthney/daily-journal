@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchLists, createList, updateList, deleteList } from "../utils";
+import { fetchLists, createList, updateList } from "../utils";
 
 export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
@@ -192,11 +192,11 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         }
     };
 
-    const deleteCurrent = async () => {
+    const archiveCurrent = async () => {
         if (!selectedId) return;
         try {
-            await deleteList(selectedId, authHeaders);
-            setLists((p) => p.filter((l) => l._id !== selectedId));
+            const updated = await updateList(selectedId, { archived: true }, authHeaders);
+            applyListUpdate(updated);
             if (onCloseList) {
                 onCloseList();
             } else {
@@ -204,11 +204,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             }
         } catch (e) {
             console.error(e);
-            setError("Unable to delete");
+            setError("Unable to archive");
         }
     };
 
     const selected = lists.find((l) => l._id === selectedId) || {};
+    const activeLists = lists.filter((l) => !l.archived);
     const publicLastViewedAtLabel = selected.publicLastViewedAt
         ? new Date(selected.publicLastViewedAt).toLocaleString()
         : "Never";
@@ -414,7 +415,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     </div>
                 )}
                 {isOwner && (
-                    <button onClick={deleteCurrent} style={{ marginTop: "24px", width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Delete list</button>
+                    <button onClick={archiveCurrent} style={{ marginTop: "24px", width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Archive list</button>
                 )}
                 {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
             </div>
@@ -425,7 +426,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         <div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Lists</h2>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
-                {lists.map(l => (
+                {activeLists.map(l => (
                     <li key={l._id}>
                         <button
                             onClick={() => selectList(l._id)}
