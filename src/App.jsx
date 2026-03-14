@@ -33,8 +33,8 @@ import Lists from "./components/Lists";
 
 // list of top‑level features that can appear on the home screen
 const FEATURES = [
-  { key: "journal", label: "Daily Journal", emoji: "📝" },
-  { key: "lists", label: "Lists", emoji: "📋" },
+  { key: "journal", label: "Daily Journal" },
+  { key: "lists", label: "Lists" },
   // additional features can be added here later
 ];
 
@@ -575,7 +575,7 @@ export default function App() {
                   }}
                   style={{ padding: "16px", borderRadius: "12px", background: "var(--surface-soft)", border: "1px solid var(--ring)", color: "var(--heading)", fontSize: "16px", cursor: "pointer" }}
                 >
-                  {f.emoji} {f.label}
+                  {f.label}
                 </button>
               ))}
             </div>
