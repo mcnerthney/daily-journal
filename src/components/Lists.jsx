@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchLists, createList, updateList } from "../utils";
+import { fetchLists, createList, updateList, deleteList } from "../utils";
 
 export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
@@ -12,6 +12,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const dragIndex = useRef(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
     const [trashOver, setTrashOver] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -41,7 +42,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     // load lists
     useEffect(() => {
         if (!token) return;
-        fetchLists(authHeaders)
+        fetchLists(authHeaders, { includeArchived: true })
             .then(setLists)
             .catch((e) => {
                 console.error(e);
@@ -195,8 +196,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const archiveCurrent = async () => {
         if (!selectedId) return;
         try {
-            const updated = await updateList(selectedId, { archived: true }, authHeaders);
-            applyListUpdate(updated);
+            await deleteList(selectedId, authHeaders);
+            setLists((prev) => prev.map((l) => (
+                getListId(l) === String(selectedId)
+                    ? { ...l, archived: true, archivedAt: new Date().toISOString(), public: false, publicId: null, publicSlug: null }
+                    : l
+            )));
             if (onCloseList) {
                 onCloseList();
             } else {
@@ -208,8 +213,38 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         }
     };
 
-    const selected = lists.find((l) => l._id === selectedId) || {};
+    const unarchiveCurrent = async () => {
+        if (!selectedId) return;
+        try {
+            const updated = await updateList(selectedId, { archived: false }, authHeaders);
+            applyListUpdate(updated);
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError("Unable to unarchive");
+        }
+    };
+
+    const permanentDeleteCurrent = async () => {
+        if (!selectedId) return;
+        try {
+            await deleteList(selectedId, authHeaders, { permanent: true });
+            setLists((prev) => prev.filter((l) => getListId(l) !== String(selectedId)));
+            if (onCloseList) {
+                onCloseList();
+            } else {
+                setSelectedId(null);
+            }
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError("Unable to permanently delete");
+        }
+    };
+
+    const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
     const activeLists = lists.filter((l) => !l.archived);
+    const archivedLists = lists.filter((l) => l.archived);
     const publicLastViewedAtLabel = selected.publicLastViewedAt
         ? new Date(selected.publicLastViewedAt).toLocaleString()
         : "Never";
@@ -257,7 +292,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     <input
                         value={selected.name || ""}
                         onChange={e => changeName(e.target.value)}
-                        disabled={!isOwner}
+                        disabled={!isOwner || !!selected.archived}
                         style={{
                             ...inputStyle,
                             fontSize: "22px",
@@ -286,6 +321,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                         }}
                         onBlur={addItem}
                         placeholder="New item"
+                        disabled={!!selected.archived}
                         style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }}
                     />
                     <div
@@ -368,6 +404,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                     color: it.done ? "var(--muted)" : "var(--text)",
                                     //textDecoration: it.done ? "line-through" : "none",
                                 }}
+                                disabled={!!selected.archived}
                             />
                         </li>
                     ))}
@@ -414,8 +451,14 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                         )}
                     </div>
                 )}
-                {isOwner && (
+                {isOwner && !selected.archived && (
                     <button onClick={archiveCurrent} style={{ marginTop: "24px", width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Archive list</button>
+                )}
+                {isOwner && selected.archived && (
+                    <div style={{ marginTop: "24px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <button onClick={unarchiveCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--heading)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Unarchive list</button>
+                        <button onClick={permanentDeleteCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Permanently delete</button>
+                    </div>
                 )}
                 {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
             </div>
@@ -425,6 +468,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     return (
         <div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Lists</h2>
+            <div style={{ marginTop: "20px", marginBottom: "16px", maxWidth: "420px" }}>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "8px" }} />
+                <button onClick={saveNewList} style={{ marginTop: "8px" }}>Create</button>
+            </div>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                 {activeLists.map(l => (
                     <li key={l._id}>
@@ -447,10 +494,40 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     </li>
                 ))}
             </ul>
-            <div style={{ marginTop: "20px", maxWidth: "420px" }}>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New list name" style={{ ...inputStyle, width: "100%", padding: "8px" }} />
-                <button onClick={saveNewList} style={{ marginTop: "8px" }}>Create</button>
-            </div>
+            {archivedLists.length > 0 && (
+                <div style={{ marginTop: "14px" }}>
+                    <button
+                        onClick={() => setShowArchived((v) => !v)}
+                        style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", padding: 0, fontSize: "13px" }}
+                    >
+                        {showArchived ? "Hide archived" : `Show archived (${archivedLists.length})`}
+                    </button>
+                    {showArchived && (
+                        <ul style={{ marginTop: "8px", padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
+                            {archivedLists.map(l => (
+                                <li key={l._id}>
+                                    <button
+                                        onClick={() => selectList(l._id)}
+                                        style={{
+                                            width: "100%",
+                                            textAlign: "left",
+                                            background: "var(--surface-soft)",
+                                            border: "1px dashed var(--border)",
+                                            borderRadius: "10px",
+                                            color: "var(--muted)",
+                                            cursor: "pointer",
+                                            padding: "12px",
+                                            fontSize: "14px",
+                                        }}
+                                    >
+                                        {l.name}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
             {error && <div style={{ color: "var(--error)", marginTop: "12px" }}>{error}</div>}
         </div>
     );

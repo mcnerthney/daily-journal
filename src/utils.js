@@ -46,8 +46,11 @@ export async function saveEntry(date, data, headers = {}) {
 }
 
 // ----- lists helpers ------------------------------------------------------
-export async function fetchLists(headers = {}) {
-    const res = await fetch(`${API}/lists`, { headers });
+export async function fetchLists(headers = {}, options = {}) {
+    const params = new URLSearchParams();
+    if (options.includeArchived) params.set("includeArchived", "true");
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API}/lists${query}`, { headers });
     if (!res.ok) {
         const err = new Error("fetch failed");
         if (res.status === 401) err.code = 401;
@@ -84,8 +87,11 @@ export async function updateList(id, data, headers = {}) {
     return res.json();
 }
 
-export async function deleteList(id, headers = {}) {
-    const res = await fetch(`${API}/lists/${id}`, {
+export async function deleteList(id, headers = {}, options = {}) {
+    const params = new URLSearchParams();
+    if (options.permanent) params.set("permanent", "true");
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API}/lists/${id}${query}`, {
         method: "DELETE",
         headers,
     });

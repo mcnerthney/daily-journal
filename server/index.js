@@ -551,11 +551,42 @@ app.put("/api/lists/:id", auth, async (req, res) => {
 app.delete("/api/lists/:id", auth, async (req, res) => {
   try {
     const id = req.params.id;
+    const permanent = req.query.permanent === "true";
     const userId = req.userId;
     const filter = { _id: new ObjectId(id) };
     const existing = await lists().findOne(filter);
     if (!existing) return res.json({ ok: true });
     if (existing.owner !== userId) return res.status(403).json({ error: "Forbidden" });
+
+    if (permanent) {
+      await lists().deleteOne(filter);
+      const recipients = [existing.owner, ...(existing.sharedWith || [])];
+      recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
+      if (existing.public && existing.publicId) {
+        io.to(`public-list:id:${existing.publicId}`).emit("public-list:updated", {
+          list: {
+            publicId: existing.publicId,
+            publicSlug: existing.publicSlug,
+            name: existing.name,
+            items: [],
+            deleted: true,
+          },
+        });
+      }
+      if (existing.public && existing.publicSlug) {
+        io.to(`public-list:slug:${existing.publicSlug}`).emit("public-list:updated", {
+          list: {
+            publicId: existing.publicId,
+            publicSlug: existing.publicSlug,
+            name: existing.name,
+            items: [],
+            deleted: true,
+          },
+        });
+      }
+      return res.json({ ok: true, permanent: true, id });
+    }
+
     const update = {
       archived: true,
       archivedAt: new Date(),
@@ -592,7 +623,7 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     res.json({ ok: true, archived: true, id });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to archive list" });
+    res.status(500).json({ error: "Failed to delete list" });
   }
 });
 
