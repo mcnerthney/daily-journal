@@ -31,6 +31,7 @@ export default function BpChart({ entries }) {
     const range = Math.max(max - min, 1);
 
     const width = 700, height = 240, padding = 40;
+    const xAxisLabelOffset = 22;
     const colors = { systolic: '#fb923c', diastolic: '#4ade80' };
     const indexDenominator = Math.max(dates.length - 1, 1);
 
@@ -61,11 +62,7 @@ export default function BpChart({ entries }) {
     const diaPts = buildPoints(diaArr);
     const sysPath = sysPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
     const diaPath = diaPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
-    const hoverDate = hoverIndex != null ? dates[hoverIndex] : null;
-    const hoverEntry = hoverDate ? entries[hoverDate] : null;
     const hoverX = hoverIndex != null ? getXForIndex(hoverIndex) : null;
-    const hoverSys = hoverEntry?.systolic;
-    const hoverDia = hoverEntry?.diastolic;
 
     return (
         <div style={{ overflowX: 'auto', marginBottom: '24px' }}>
@@ -112,7 +109,7 @@ export default function BpChart({ entries }) {
                 {dates.map((date, i) => {
                     const x = getXForIndex(i);
                     return (
-                        <text key={i} x={x} y={height - padding + 15} fontSize="10" fill="#888" textAnchor="middle">
+                        <text key={i} x={x} y={height - padding + xAxisLabelOffset} fontSize="10" fill="#888" textAnchor="middle">
                             {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
                         </text>
                     );
@@ -140,20 +137,6 @@ export default function BpChart({ entries }) {
                         );
                     });
                 })()}
-                {hoverDate && (
-                    <g>
-                        <rect x={padding + 6} y={6} width={220} height={44} rx={6} fill="#0b0b10" stroke="#2a2a3a" />
-                        <text x={padding + 12} y={22} fontSize="11" fill="#b7b7c9">
-                            {new Date(hoverDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </text>
-                        <text x={padding + 12} y={38} fontSize="11" fill={colors.systolic}>
-                            SYS: {hoverSys != null && hoverSys > 0 ? hoverSys : '—'}
-                        </text>
-                        <text x={padding + 98} y={38} fontSize="11" fill={colors.diastolic}>
-                            DIA: {hoverDia != null && hoverDia > 0 ? hoverDia : '—'}
-                        </text>
-                    </g>
-                )}
             </svg>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px' }}>
                 <span style={{ color: colors.systolic, fontSize: '12px' }}>🟠 Systolic</span>
