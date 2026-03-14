@@ -124,7 +124,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const addItem = async () => {
         if (!newItem.trim() || !selectedId) return;
         const list = lists.find((l) => l._id === selectedId);
-        const items = [...(list.items || []), { text: newItem.trim(), done: false }];
+        const items = [{ text: newItem.trim(), done: false }, ...(list?.items || [])];
         try {
             const updated = await updateList(selectedId, { items }, authHeaders);
             applyListUpdate(updated);
@@ -233,16 +233,13 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     if (selectedId) {
         return (
             <div style={{ minHeight: "calc(100vh - 180px)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", gap: "12px", flexWrap: "wrap" }}>
+                <div style={{ marginBottom: "16px" }}>
                     <button
                         onClick={backToLists}
                         style={{ background: "none", border: "none", color: "#4ade80", cursor: "pointer", fontSize: "14px", padding: 0 }}
                     >
                         ← Back to lists
                     </button>
-                    {isOwner && (
-                        <button onClick={deleteCurrent} style={{ color: "#ef4444" }}>Delete list</button>
-                    )}
                 </div>
 
                 <div style={{ display: "grid", gap: "10px", marginBottom: "10px" }}>
@@ -266,9 +263,49 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                 </div>
 
                 <h4>Items</h4>
-                <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                    <input value={newItem} onChange={e => setNewItem(e.target.value)} placeholder="New item" style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }} />
-                    <button onClick={addItem}>Add</button>
+                <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                        value={newItem}
+                        onChange={e => setNewItem(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                addItem();
+                            }
+                        }}
+                        onBlur={addItem}
+                        placeholder="New item"
+                        style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }}
+                    />
+                    <div
+                        onDragOver={(e) => { e.preventDefault(); setTrashOver(true); }}
+                        onDragLeave={() => setTrashOver(false)}
+                        onDrop={async () => {
+                            setTrashOver(false);
+                            if (dragIndex.current !== null) {
+                                const idx = dragIndex.current;
+                                dragIndex.current = null;
+                                await deleteItem(idx);
+                            }
+                        }}
+                        title="Drop here to delete"
+                        style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "6px",
+                            border: `2px dashed ${trashOver ? "#ef4444" : "#555"}`,
+                            background: trashOver ? "#ef444422" : "transparent",
+                            fontSize: "18px",
+                            flexShrink: 0,
+                            transition: "all 0.15s",
+                            cursor: "default",
+                        }}
+                    >
+                        🗑️
+                    </div>
                 </div>
                 <ul style={{ padding: 0, listStyle: "none" }}>
                     {(selected.items || []).map((it, idx) => (
@@ -324,37 +361,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                         </li>
                     ))}
                 </ul>
-                <div
-                    onDragOver={(e) => { e.preventDefault(); setTrashOver(true); }}
-                    onDragLeave={() => setTrashOver(false)}
-                    onDrop={async () => {
-                        setTrashOver(false);
-                        if (dragIndex.current !== null) {
-                            const idx = dragIndex.current;
-                            dragIndex.current = null;
-                            await deleteItem(idx);
-                        }
-                    }}
-                    title="Drop here to delete"
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "6px",
-                        border: `2px dashed ${trashOver ? "#ef4444" : "#555"}`,
-                        background: trashOver ? "#ef444422" : "transparent",
-                        fontSize: "18px",
-                        marginBottom: "8px",
-                        transition: "all 0.15s",
-                        cursor: "default",
-                    }}
-                >
-                    🗑️
-                </div>
+
                 {isOwner && (
-                    <div>
+                    <div style={{ marginTop: "10px" }}>
                         <label style={{ fontSize: "14px" }}>
                             <input
                                 type="checkbox"
@@ -393,6 +402,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             </div>
                         )}
                     </div>
+                )}
+                {isOwner && (
+                    <button onClick={deleteCurrent} style={{ marginTop: "24px", width: "fit-content", background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "10px", color: "#ef4444", cursor: "pointer", padding: "12px", fontSize: "14px" }}>Delete list</button>
                 )}
                 {error && <div style={{ color: "#ef4444", marginTop: "12px" }}>{error}</div>}
             </div>
