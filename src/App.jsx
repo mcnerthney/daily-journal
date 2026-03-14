@@ -662,9 +662,6 @@ export default function App() {
                   ))}
                 </>
               )}
-              <button onClick={logout} style={{ marginLeft: "4px", padding: "7px 16px", borderRadius: "10px", border: "1px solid var(--header-btn-border)", background: "var(--header-btn-bg)", color: "var(--header-btn-text)", cursor: "pointer", fontSize: "13px", fontWeight: 500 }}>
-                Log out
-              </button>
             </div>
           </div>
         </div>
