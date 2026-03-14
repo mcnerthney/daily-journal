@@ -125,18 +125,6 @@ export default function BpChart({ entries }) {
                         strokeWidth="1"
                     />
                 )}
-                {/* y-axis ticks only for values actually recorded */}
-                {(() => {
-                    const vals = Array.from(new Set([...sysArr, ...diaArr].map(d => d.val))).sort((a, b) => a - b);
-                    return vals.map(v => {
-                        const y = getYForValue(v);
-                        return (
-                            <text key={v} x={padding - 10} y={y + 4} fontSize="10" fill="#888" textAnchor="end">
-                                {v}
-                            </text>
-                        );
-                    });
-                })()}
             </svg>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '8px' }}>
                 <span style={{ color: colors.systolic, fontSize: '12px' }}>🟠 Systolic</span>
