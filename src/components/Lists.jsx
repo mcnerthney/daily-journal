@@ -318,7 +318,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             setError(formatActionError("Unable to reorder lists", e));
             fetchLists(authHeaders, { includeArchived: true })
                 .then(setLists)
-                .catch(() => {});
+                .catch(() => { });
         }
     };
 
