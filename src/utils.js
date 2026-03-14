@@ -11,6 +11,18 @@ export const formatDate = (d) =>
         year: "numeric",
     });
 
+export const getRelativeDateLabel = (dateKey, todayKey = getTodayKey()) => {
+    if (dateKey === todayKey) return "Today";
+
+    const todayDate = new Date(todayKey + "T12:00:00");
+    const yesterdayDate = new Date(todayDate);
+    yesterdayDate.setDate(todayDate.getDate() - 1);
+    const yesterdayKey = yesterdayDate.toLocaleDateString("en-CA");
+
+    if (dateKey === yesterdayKey) return "Yesterday";
+    return formatDate(dateKey);
+};
+
 export async function fetchAllEntries(headers = {}) {
     const res = await fetch(`${API}/entries`, { headers });
     if (!res.ok) {

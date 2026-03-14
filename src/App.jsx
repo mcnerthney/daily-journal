@@ -5,6 +5,7 @@ import {
   API,
   getTodayKey,
   formatDate,
+  getRelativeDateLabel,
   fetchAllEntries,
   saveEntry,
   fetchPublicList,
@@ -243,6 +244,7 @@ export default function App() {
   const [toast, setToast] = useState({ message: "", visible: false });
   // keep a constant for the real "today" so we can label toasts appropriately
   const today = currentDate;
+  const activeDateLabel = getRelativeDateLabel(activeDate, today);
   const socketRef = useRef(null);
 
   // headers helper including auth token
@@ -598,7 +600,7 @@ export default function App() {
                 <SaveIndicator status={saveStatus} />
               </div>
               <div style={{ color: "#666", fontSize: "12px", marginTop: "4px" }}>
-                {formatDate(activeDate)}
+                {activeDateLabel}
                 {activeDate !== today && (
                   <button
                     onClick={() => setActiveDate(today)}
@@ -632,7 +634,7 @@ export default function App() {
           {appView === "journal" && view === "today" && (
             <div style={{ marginTop: "14px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#888", marginBottom: "4px" }}>
-                <span>{activeDate === today ? "Today's wellness score" : formatDate(activeDate) + " wellness score"}</span>
+                <span>{activeDateLabel} wellness score</span>
                 <span style={{ color: scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#ef4444", fontWeight: 600 }}>{scorePct}%</span>
               </div>
               <ScoreBar score={activeScore} max={maxScore} color={scorePct > 60 ? "#22c55e" : scorePct > 30 ? "#eab308" : "#6d5acd"} />
