@@ -50,6 +50,13 @@ export default function BpChart({ entries }) {
     const getYForValue = (value) =>
         height - padding - ((value - min) / range) * (height - 2 * padding);
 
+    const formatLocalDateLabel = (dateStr) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        if (!year || !month || !day) return dateStr;
+        const localDate = new Date(year, month - 1, day);
+        return localDate.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' });
+    };
+
     const buildPoints = (arr) =>
         arr.map((d) => {
             // determine index of this date in full series to place on correct x
@@ -133,7 +140,7 @@ export default function BpChart({ entries }) {
                     const x = getXForIndex(i);
                     return (
                         <text key={i} x={x} y={height - padding + xAxisLabelOffset} fontSize="12" fill="#888" textAnchor="middle">
-                            {new Date(date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })}
+                            {formatLocalDateLabel(date)}
                         </text>
                     );
                 })}
