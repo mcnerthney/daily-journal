@@ -245,6 +245,12 @@ export default function App() {
   // keep a constant for the real "today" so we can label toasts appropriately
   const today = currentDate;
   const activeDateLabel = getRelativeDateLabel(activeDate, today);
+  const activeDatePromptTarget =
+    activeDateLabel === "Today"
+      ? "today"
+      : activeDateLabel === "Yesterday"
+        ? "yesterday"
+        : `on ${activeDateLabel}`;
   const socketRef = useRef(null);
 
   // headers helper including auth token
@@ -713,7 +719,7 @@ export default function App() {
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
                 {FOODS.map(f => <ToggleChip key={f.label} label={f.label} emoji={f.emoji} checked={(activeEntry.food || []).includes(f.label)} onChange={() => toggle("food", f.label)} color="#4ade80" />)}
               </div>
-              <textarea spellCheck={true} placeholder="What did you eat today?" value={activeEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
+              <textarea spellCheck={true} placeholder={`What did you eat ${activeDatePromptTarget}?`} value={activeEntry.food_notes || ""} onChange={e => updateEntry({ food_notes: e.target.value })} style={{ ...textareaStyle, minHeight: "70px", padding: "10px 12px" }} />
             </Section>
 
             <Section title="Personal Hygiene" icon="🚿" accent="#38bdf8">
@@ -752,7 +758,7 @@ export default function App() {
             </Section>
 
             <Section title="Journal Notes" icon="📝" accent="#a78bfa">
-              <textarea spellCheck={true} placeholder="How was your day? Anything on your mind…" value={activeEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
+              <textarea spellCheck={true} placeholder={`How did ${activeDatePromptTarget} go? Anything on your mind…`} value={activeEntry.notes || ""} onChange={e => updateNotes(e.target.value)} style={{ ...textareaStyle, minHeight: "120px", padding: "12px", fontSize: "14px" }} />
             </Section>
 
             <div style={{ background: "#12121a", border: "1px solid #2a2a3a", borderRadius: "16px", padding: "18px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
