@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchLists, createList, updateList, deleteList } from "../utils";
 
-export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList }) {
+export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [newName, setNewName] = useState("");
@@ -202,6 +202,15 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const publicLastViewedAtLabel = selected.publicLastViewedAt
         ? new Date(selected.publicLastViewedAt).toLocaleString()
         : "Never";
+
+    useEffect(() => {
+        if (!onSelectedListTitle) return;
+        if (!selectedId) {
+            onSelectedListTitle("");
+            return;
+        }
+        onSelectedListTitle(selected.title || selected.name || "");
+    }, [onSelectedListTitle, selectedId, selected.title, selected.name]);
 
     // decode simple JWT to access userId for owner checks
     const decodeToken = (t) => {
@@ -405,7 +414,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     return (
         <div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", color: "var(--heading)" }}>Lists</h2>
-            <h3>Your lists</h3>
             <ul style={{ padding: 0, listStyle: "none", display: "grid", gap: "8px" }}>
                 {lists.map(l => (
                     <li key={l._id}>

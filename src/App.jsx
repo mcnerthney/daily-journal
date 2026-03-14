@@ -106,6 +106,7 @@ export default function App() {
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
   const [selectedListIdRoute, setSelectedListIdRoute] = useState(null);
+  const [selectedListTitle, setSelectedListTitle] = useState("");
   const [publicListKey, setPublicListKey] = useState(null);
   const [publicListId, setPublicListId] = useState(null);
   const [publicList, setPublicList] = useState(null);
@@ -146,6 +147,9 @@ export default function App() {
   const applyRouteState = useCallback((routeState) => {
     setAppView(routeState.appView);
     setSelectedListIdRoute(routeState.selectedListId);
+    if (routeState.appView !== "lists" || !routeState.selectedListId) {
+      setSelectedListTitle("");
+    }
     if (routeState.resetJournalView) {
       setView("today");
     }
@@ -178,7 +182,7 @@ export default function App() {
   const currentFeature = FEATURES.find(f => f.key === appView);
   const isListEditor = appView === "lists" && !!selectedListIdRoute;
   const featureTitle = appView === "lists" && selectedListIdRoute
-    ? "List Editor"
+    ? (selectedListTitle || "List Editor")
     : (currentFeature ? currentFeature.label : "");
 
   // which date are we currently editing? defaults to today but can be changed
@@ -635,7 +639,7 @@ export default function App() {
                         </button>
                         <span style={{ color: "var(--header-text)", fontSize: "14px" }}>/</span>
                         <h1 style={{ margin: 0, fontSize: "14px", fontFamily: "'Playfair Display', serif", fontWeight: 700, color: "var(--header-text)" }}>
-                          List Editor
+                          {selectedListTitle || "List Editor"}
                         </h1>
                       </>
                     ) : (
@@ -673,6 +677,7 @@ export default function App() {
             token={token}
             socket={socketRef.current}
             selectedId={selectedListIdRoute}
+            onSelectedListTitle={setSelectedListTitle}
             onSelectList={(id) => navigateToRoute(`lists/edit/${encodeURIComponent(id)}`)}
             onCloseList={() => navigateToRoute("lists")}
           />
