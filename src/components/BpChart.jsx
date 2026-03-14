@@ -45,12 +45,15 @@ export default function BpChart({ entries }) {
         return Math.round(ratio * indexDenominator);
     };
 
+    const getYForValue = (value) =>
+        height - padding - ((value - min) / range) * (height - 2 * padding);
+
     const buildPoints = (arr) =>
         arr.map((d) => {
             // determine index of this date in full series to place on correct x
             const i = dates.indexOf(d.date);
             const x = getXForIndex(i);
-            const y = height - padding - ((d.val - min) / range) * (height - 2 * padding);
+            const y = getYForValue(d.val);
             return [x, y];
         });
 
@@ -80,6 +83,32 @@ export default function BpChart({ entries }) {
                 <rect width="100%" height="100%" fill="#12121a" />
                 <path d={sysPath} fill="none" stroke={colors.systolic} strokeWidth="2" />
                 <path d={diaPath} fill="none" stroke={colors.diastolic} strokeWidth="2" />
+                {sysArr.map((d) => {
+                    const i = dates.indexOf(d.date);
+                    const x = getXForIndex(i);
+                    const y = getYForValue(d.val);
+                    return (
+                        <g key={`sys-${d.date}`}>
+                            <circle cx={x} cy={y} r="2.5" fill={colors.systolic} />
+                            <text x={x} y={y - 6} fontSize="10" fill={colors.systolic} textAnchor="middle">
+                                {d.val}
+                            </text>
+                        </g>
+                    );
+                })}
+                {diaArr.map((d) => {
+                    const i = dates.indexOf(d.date);
+                    const x = getXForIndex(i);
+                    const y = getYForValue(d.val);
+                    return (
+                        <g key={`dia-${d.date}`}>
+                            <circle cx={x} cy={y} r="2.5" fill={colors.diastolic} />
+                            <text x={x} y={y + 12} fontSize="10" fill={colors.diastolic} textAnchor="middle">
+                                {d.val}
+                            </text>
+                        </g>
+                    );
+                })}
                 {dates.map((date, i) => {
                     const x = getXForIndex(i);
                     return (
@@ -103,7 +132,7 @@ export default function BpChart({ entries }) {
                 {(() => {
                     const vals = Array.from(new Set([...sysArr, ...diaArr].map(d => d.val))).sort((a, b) => a - b);
                     return vals.map(v => {
-                        const y = height - padding - ((v - min) / range) * (height - 2 * padding);
+                        const y = getYForValue(v);
                         return (
                             <text key={v} x={padding - 10} y={y + 4} fontSize="10" fill="#888" textAnchor="end">
                                 {v}
