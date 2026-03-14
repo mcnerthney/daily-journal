@@ -88,6 +88,7 @@ export default function BpChart({ entries }) {
                     y2={line130Y}
                     stroke="#fdba74"
                     strokeWidth="1"
+                    strokeDasharray="4 4"
                     opacity="0.7"
                 />
                 <line
@@ -97,6 +98,7 @@ export default function BpChart({ entries }) {
                     y2={line80Y}
                     stroke="#86efac"
                     strokeWidth="1"
+                    strokeDasharray="4 4"
                     opacity="0.7"
                 />
                 <path d={sysPath} fill="none" stroke={colors.systolic} strokeWidth="2" />
