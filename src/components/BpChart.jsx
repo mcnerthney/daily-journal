@@ -2,7 +2,13 @@ import React, { useState } from "react";
 
 export default function BpChart({ entries }) {
     const [hoverIndex, setHoverIndex] = useState(null);
-    const dates = Object.keys(entries).sort();
+    const dates = Object.keys(entries)
+        .sort()
+        .filter((date) => {
+            const sys = entries[date]?.systolic;
+            const dia = entries[date]?.diastolic;
+            return (sys != null && sys > 0) || (dia != null && dia > 0);
+        });
     if (dates.length === 0) return <div style={{ textAlign: 'center', color: '#555' }}>No data</div>;
 
 
