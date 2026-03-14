@@ -31,7 +31,7 @@ export default function BpChart({ entries }) {
     const min = Math.min(75, lowestDia);
     const range = Math.max(max - min, 1);
 
-    const width = 700, height = 240, padding = 40;
+    const width = 200, height = 240, padding = 40;
     const xAxisLabelOffset = 16;
     const colors = { systolic: '#fb923c', diastolic: '#4ade80' };
     const indexDenominator = Math.max(dates.length - 1, 1);
