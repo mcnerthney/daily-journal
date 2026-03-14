@@ -25,9 +25,10 @@ export default function BpChart({ entries }) {
         ...diaArr.map(d => d.val),
         0
     );
-    const min = diaArr.length > 0
+    const lowestDia = diaArr.length > 0
         ? Math.min(...diaArr.map(d => d.val))
-        : 0;
+        : Infinity;
+    const min = Math.min(75, lowestDia);
     const range = Math.max(max - min, 1);
 
     const width = 700, height = 240, padding = 40;
