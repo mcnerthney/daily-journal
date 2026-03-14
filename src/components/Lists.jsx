@@ -381,11 +381,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                             background: isOwner ? inputStyle.background : "var(--surface-soft)",
                         }}
                     />
-                    {selected.ownerEmail && (
-                        <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                            Owner: {selected.ownerEmail}
-                        </div>
-                    )}
                 </div>
 
                 <h4>Items</h4>
