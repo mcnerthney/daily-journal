@@ -519,11 +519,38 @@ export default function App() {
   // if we're viewing a public list, render it and nothing else
   if (publicListKey) {
     const visiblePublicItems = (publicList?.items || []).filter((it) => !it.done);
+    const canEditPublicList = Boolean(token && publicListId);
+    const openPublicListEditor = () => {
+      if (!publicListId) return;
+      const encodedId = encodeURIComponent(publicListId);
+      const nextSearch = window.location.search || "";
+      window.location.assign(`/${nextSearch}#lists/edit/${encodedId}`);
+    };
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: "40px" }}>
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
-            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", paddingBottom: "40px" }}>{publicList.name}</h1>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingBottom: "24px" }}>
+              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", margin: 0 }}>{publicList.name}</h1>
+              {canEditPublicList && (
+                <button
+                  type="button"
+                  onClick={openPublicListEditor}
+                  style={{
+                    background: "var(--surface)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "10px",
+                    color: "var(--heading)",
+                    cursor: "pointer",
+                    padding: "8px 14px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                  }}
+                >
+                  Edit
+                </button>
+              )}
+            </div>
             <ul style={{ listStyle: "none", padding: 0 }}>
               {visiblePublicItems.map((it, idx) => (
                 <li key={it.id || it.itemId || idx} style={{ marginBottom: "6px" }}>
