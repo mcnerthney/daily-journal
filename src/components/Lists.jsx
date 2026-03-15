@@ -11,11 +11,14 @@ import {
     transferListItem,
 } from "../utils";
 
-export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList, onSelectedListTitle }) {
+export default function Lists({ token, socket, selectedId: routeSelectedId, selectedItemId: routeSelectedItemId, onSelectList, onCloseList, onOpenItemDetails, onCloseItemDetails, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
+    const [selectedItemId, setSelectedItemId] = useState(null);
     const [newName, setNewName] = useState("");
     const [titleDraft, setTitleDraft] = useState("");
+    const [itemTextDraft, setItemTextDraft] = useState("");
+    const [itemNoteDraft, setItemNoteDraft] = useState("");
     const [newNamePublic, setNewNamePublic] = useState(false);
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
@@ -24,10 +27,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const [dragOverIndex, setDragOverIndex] = useState(null);
     const [trashOver, setTrashOver] = useState(false);
     const dragListId = useRef(null);
+    const longPressTimer = useRef(null);
     const [dragOverListId, setDragOverListId] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [transferItemId, setTransferItemId] = useState(null);
     const [transferTargetId, setTransferTargetId] = useState("");
+    const [transferEnabled, setTransferEnabled] = useState(false);
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -102,12 +107,14 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     useEffect(() => {
         if (routeSelectedId === undefined) return;
         setSelectedId(routeSelectedId ? String(routeSelectedId) : null);
+        setSelectedItemId(routeSelectedItemId ? String(routeSelectedItemId) : null);
         setNewItem("");
         setShareInput("");
         setError("");
         setTransferItemId(null);
         setTransferTargetId("");
-    }, [routeSelectedId]);
+        setTransferEnabled(false);
+    }, [routeSelectedId, routeSelectedItemId]);
 
     // sync title draft when the selected list or its name changes
     useEffect(() => {
@@ -144,11 +151,13 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             onSelectList(normalizedId);
         } else {
             setSelectedId(normalizedId);
+            setSelectedItemId(null);
         }
         setNewItem("");
         setShareInput("");
         setTransferItemId(null);
         setTransferTargetId("");
+        setTransferEnabled(false);
     };
 
     const backToLists = () => {
@@ -156,17 +165,69 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
             onCloseList();
         } else {
             setSelectedId(null);
+            setSelectedItemId(null);
         }
         setNewItem("");
         setShareInput("");
         setError("");
         setTransferItemId(null);
         setTransferTargetId("");
+        setTransferEnabled(false);
     };
+
+    useEffect(() => {
+        if (transferEnabled) return;
+        setTransferItemId(null);
+        setTransferTargetId("");
+    }, [transferEnabled]);
 
     const applyListUpdate = (updated) => {
         upsertList(updated);
     };
+
+    const clearLongPressTimer = () => {
+        if (!longPressTimer.current) return;
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+    };
+
+    const openItemDetails = (itemId) => {
+        const selectedListId = String(selectedId || "");
+        const normalizedItemId = String(itemId || "");
+        if (!selectedListId || !normalizedItemId) return;
+        if (onOpenItemDetails) {
+            onOpenItemDetails(selectedListId, normalizedItemId);
+            return;
+        }
+        setSelectedItemId(normalizedItemId);
+    };
+
+    const closeItemDetails = () => {
+        const selectedListId = String(selectedId || "");
+        if (onCloseItemDetails && selectedListId) {
+            onCloseItemDetails(selectedListId);
+            return;
+        }
+        setSelectedItemId(null);
+    };
+
+    const startItemLongPress = (itemId, event) => {
+        if (selected.archived) return;
+        if (!itemId) return;
+        const target = event?.target;
+        if (target?.closest && target.closest("button, select, textarea, a, label, input[type='checkbox']")) {
+            return;
+        }
+        clearLongPressTimer();
+        longPressTimer.current = setTimeout(() => {
+            openItemDetails(itemId);
+            longPressTimer.current = null;
+        }, 550);
+    };
+
+    useEffect(() => {
+        return () => clearLongPressTimer();
+    }, []);
 
     const saveNewList = async () => {
         if (!newName.trim()) return;
@@ -421,6 +482,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     };
 
     const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
+    const selectedItem = (selected.items || []).find((item) => getItemId(item) === String(selectedItemId || "")) || null;
     const activeLists = sortLists(lists.filter((l) => !l.archived));
     const archivedLists = sortLists(lists.filter((l) => l.archived));
     const transferTargets = sortLists(lists.filter((list) => getListId(list) !== String(selectedId || "")));
@@ -436,6 +498,25 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         }
         onSelectedListTitle(selected.title || selected.name || "");
     }, [onSelectedListTitle, selectedId, selected.title, selected.name]);
+
+    useEffect(() => {
+        setItemTextDraft(selectedItem?.text || "");
+        setItemNoteDraft(selectedItem?.note || "");
+    }, [selectedItemId, selectedItem?.text, selectedItem?.note]);
+
+    const saveItemDetails = async (changes, errorMessage) => {
+        const selectedListId = String(selectedId || "");
+        const currentItemId = String(selectedItemId || "");
+        if (!selectedListId || !currentItemId) return;
+        try {
+            const updated = await updateListItem(selectedListId, currentItemId, changes, authHeaders);
+            applyListUpdate(updated);
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError(errorMessage, e));
+        }
+    };
 
     // decode simple JWT to access userId for owner checks
     const decodeToken = (t) => {
@@ -464,6 +545,77 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         );
     }
 
+    if (selectedId && selectedItemId) {
+        if (!selectedItem) {
+            return (
+                <div style={{ minHeight: "calc(100vh - 180px)", display: "grid", gap: "12px" }}>
+                    <button
+                        onClick={closeItemDetails}
+                        style={{ justifySelf: "start", background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                    >
+                        ← Back to list
+                    </button>
+                    <div style={{ color: "var(--muted)" }}>Item not found.</div>
+                    {error && <div style={{ color: "var(--error)" }}>{error}</div>}
+                </div>
+            );
+        }
+
+        return (
+            <div style={{ minHeight: "calc(100vh - 180px)", display: "grid", gap: "12px" }}>
+                <button
+                    onClick={closeItemDetails}
+                    style={{ justifySelf: "start", background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                >
+                    ← Back to list
+                </button>
+                <h4 style={{ margin: 0 }}>Item details</h4>
+
+                <label style={{ display: "grid", gap: "6px", fontSize: "13px", color: "var(--muted)" }}>
+                    Item
+                    <input
+                        value={itemTextDraft}
+                        onChange={(e) => setItemTextDraft(e.target.value)}
+                        onBlur={() => {
+                            const nextText = itemTextDraft.trim();
+                            if (!nextText || nextText === (selectedItem.text || "")) return;
+                            saveItemDetails({ text: nextText }, "Unable to update item text");
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") e.currentTarget.blur();
+                        }}
+                        style={{ ...inputStyle, padding: "8px" }}
+                    />
+                </label>
+
+                <label style={{ display: "grid", gap: "6px", fontSize: "13px", color: "var(--muted)" }}>
+                    Note
+                    <textarea
+                        value={itemNoteDraft}
+                        onChange={(e) => setItemNoteDraft(e.target.value)}
+                        onBlur={() => {
+                            if (itemNoteDraft === (selectedItem.note || "")) return;
+                            saveItemDetails({ note: itemNoteDraft }, "Unable to update item note");
+                        }}
+                        rows={5}
+                        style={{ ...inputStyle, padding: "8px", resize: "vertical", minHeight: "110px", fontFamily: "inherit" }}
+                    />
+                </label>
+
+                <label style={{ fontSize: "14px" }}>
+                    <input
+                        type="checkbox"
+                        checked={!!selectedItem.done}
+                        onChange={() => saveItemDetails({ done: !selectedItem.done }, "Unable to update item status")}
+                    />{' '}
+                    Mark complete
+                </label>
+
+                {error && <div style={{ color: "var(--error)" }}>{error}</div>}
+            </div>
+        );
+    }
+
     if (selectedId) {
         return (
             <div style={{ minHeight: "calc(100vh + 220px)", display: "flex", flexDirection: "column" }}>
@@ -486,7 +638,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                     />
                 </div>
 
-                <h4>Items</h4>
+                <h4 style={{ margin: 0 }}>Items</h4>
                 <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                     <input
                         value={newItem}
@@ -537,10 +689,24 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                         <li
                             key={`${selectedId}-${getItemId(it)}-${it.updatedAt || ""}`}
                             draggable
-                            onDragStart={() => { dragItemId.current = getItemId(it); }}
+                            onDragStart={() => {
+                                clearLongPressTimer();
+                                dragItemId.current = getItemId(it);
+                            }}
+                            onMouseDown={(e) => startItemLongPress(getItemId(it), e)}
+                            onMouseUp={clearLongPressTimer}
+                            onMouseLeave={clearLongPressTimer}
+                            onTouchStart={(e) => startItemLongPress(getItemId(it), e)}
+                            onTouchEnd={clearLongPressTimer}
+                            onTouchCancel={clearLongPressTimer}
                             onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
                             onDrop={async () => { await reorderItems(idx); }}
-                            onDragEnd={() => { setDragOverIndex(null); setTrashOver(false); dragItemId.current = null; }}
+                            onDragEnd={() => {
+                                clearLongPressTimer();
+                                setDragOverIndex(null);
+                                setTrashOver(false);
+                                dragItemId.current = null;
+                            }}
                             style={{
                                 display: "grid",
                                 gap: "6px",
@@ -575,7 +741,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                     }}
                                     disabled={!!selected.archived}
                                 />
-                                {!selected.archived && (
+                                {!selected.archived && transferEnabled && (
                                     <button
                                         type="button"
                                         onClick={() => openTransferPanel(getItemId(it))}
@@ -589,7 +755,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                     </button>
                                 )}
                             </div>
-                            {transferItemId === getItemId(it) && (
+                            {transferEnabled && transferItemId === getItemId(it) && (
                                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", paddingLeft: "22px" }}>
                                     {transferTargets.length > 0 ? (
                                         <>
@@ -670,6 +836,18 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                                         UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
                                     </div>
                                 )}
+                            </div>
+                        )}
+                        {!selected.archived && (
+                            <div style={{ marginTop: "8px" }}>
+                                <label style={{ fontSize: "14px" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={transferEnabled}
+                                        onChange={(e) => setTransferEnabled(e.target.checked)}
+                                    />{' '}
+                                    Enable Share / Copy
+                                </label>
                             </div>
                         )}
                     </div>

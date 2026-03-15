@@ -112,6 +112,7 @@ export default function App() {
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
   const [selectedListIdRoute, setSelectedListIdRoute] = useState(null);
+  const [selectedListItemIdRoute, setSelectedListItemIdRoute] = useState(null);
   const [selectedListTitle, setSelectedListTitle] = useState("");
   const [publicListKey, setPublicListKey] = useState(null);
   const [publicListId, setPublicListId] = useState(null);
@@ -123,13 +124,30 @@ export default function App() {
     const clean = (route || "").replace(/^#/, "");
 
     if (!clean) {
-      return { appView: "home", selectedListId: null, resetJournalView: false };
+      return { appView: "home", selectedListId: null, selectedListItemId: null, resetJournalView: false };
     }
     if (clean === "journal") {
-      return { appView: "journal", selectedListId: null, resetJournalView: true };
+      return { appView: "journal", selectedListId: null, selectedListItemId: null, resetJournalView: true };
     }
     if (clean === "lists") {
-      return { appView: "lists", selectedListId: null, resetJournalView: false };
+      return { appView: "lists", selectedListId: null, selectedListItemId: null, resetJournalView: false };
+    }
+
+    const listItemMatch = clean.match(/^lists\/item\/([^/]+)\/(.+)$/);
+    if (listItemMatch) {
+      let selectedListId = listItemMatch[1];
+      let selectedListItemId = listItemMatch[2];
+      try {
+        selectedListId = decodeURIComponent(selectedListId);
+      } catch (_) {
+        // keep raw id if decode fails so route still resolves
+      }
+      try {
+        selectedListItemId = decodeURIComponent(selectedListItemId);
+      } catch (_) {
+        // keep raw id if decode fails so route still resolves
+      }
+      return { appView: "lists", selectedListId, selectedListItemId, resetJournalView: false };
     }
 
     const listEditMatch = clean.match(/^lists\/edit\/(.+)$/);
@@ -140,19 +158,20 @@ export default function App() {
       } catch (_) {
         // keep raw id if decode fails so route still resolves
       }
-      return { appView: "lists", selectedListId, resetJournalView: false };
+      return { appView: "lists", selectedListId, selectedListItemId: null, resetJournalView: false };
     }
 
     if (clean === "stats") {
-      return { appView: "stats", selectedListId: null, resetJournalView: false };
+      return { appView: "stats", selectedListId: null, selectedListItemId: null, resetJournalView: false };
     }
 
-    return { appView: clean, selectedListId: null, resetJournalView: false };
+    return { appView: clean, selectedListId: null, selectedListItemId: null, resetJournalView: false };
   }, []);
 
   const applyRouteState = useCallback((routeState) => {
     setAppView(routeState.appView);
     setSelectedListIdRoute(routeState.selectedListId);
+    setSelectedListItemIdRoute(routeState.selectedListItemId || null);
     if (routeState.appView !== "lists" || !routeState.selectedListId) {
       setSelectedListTitle("");
     }
@@ -717,8 +736,11 @@ export default function App() {
             token={token}
             socket={socketRef.current}
             selectedId={selectedListIdRoute}
+            selectedItemId={selectedListItemIdRoute}
             onSelectedListTitle={setSelectedListTitle}
             onSelectList={(id) => navigateToRoute(`lists/edit/${encodeURIComponent(id)}`)}
+            onOpenItemDetails={(listId, itemId) => navigateToRoute(`lists/item/${encodeURIComponent(listId)}/${encodeURIComponent(itemId)}`)}
+            onCloseItemDetails={(listId) => navigateToRoute(`lists/edit/${encodeURIComponent(listId)}`)}
             onCloseList={() => navigateToRoute("lists")}
           />
         ) : loading ? (

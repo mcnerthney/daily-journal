@@ -238,16 +238,17 @@ function canAccessList(listDoc, userId) {
 
 function normalizeStoredItemRef(item) {
   if (typeof item === "string") {
-    return { itemId: "", text: item, done: false };
+    return { itemId: "", text: item, note: "", done: false };
   }
 
   if (!item || typeof item !== "object") {
-    return { itemId: "", text: "", done: false };
+    return { itemId: "", text: "", note: "", done: false };
   }
 
   return {
     itemId: String(item.itemId || item.id || ""),
     text: typeof item.text === "string" ? item.text : "",
+    note: typeof item.note === "string" ? item.note : "",
     done: !!item.done,
     sourceItemId: item.sourceItemId || item.originItemId || null,
     createdAt: item.createdAt || null,
@@ -264,6 +265,7 @@ async function persistListItemsForList(listDoc, rawItems = [], actorUserId = lis
     const normalized = normalizeStoredItemRef(rawItem);
     const itemId = normalized.itemId || crypto.randomUUID();
     const text = String(normalized.text || "").trim();
+    const note = String(normalized.note || "");
 
     if (!itemId || !text) continue;
 
@@ -271,6 +273,7 @@ async function persistListItemsForList(listDoc, rawItems = [], actorUserId = lis
     upserts.push({
       itemId,
       text,
+      note,
       sourceItemId: String(normalized.sourceItemId || itemId),
       createdAt: normalized.createdAt ? new Date(normalized.createdAt) : now,
       createdBy: normalized.createdBy || actorUserId,
@@ -286,6 +289,7 @@ async function persistListItemsForList(listDoc, rawItems = [], actorUserId = lis
           {
             $set: {
               text: item.text,
+              note: item.note,
               sourceItemId: item.sourceItemId,
               updatedAt: item.updatedAt,
             },
@@ -351,6 +355,7 @@ async function hydrateListDoc(listDoc) {
         id: ref.itemId,
         itemId: ref.itemId,
         text: itemDoc?.text || "",
+        note: itemDoc?.note || "",
         done: ref.done,
         sourceItemId: itemDoc?.sourceItemId || ref.itemId,
         createdAt: itemDoc?.createdAt || null,
@@ -410,6 +415,7 @@ async function emitSharedItemUpdated(itemId) {
       id: normalizedItemId,
       itemId: normalizedItemId,
       text: itemDoc.text || "",
+      note: itemDoc.note || "",
       sourceItemId: itemDoc.sourceItemId || normalizedItemId,
       createdAt: itemDoc.createdAt || null,
       updatedAt: itemDoc.updatedAt || null,
@@ -449,6 +455,7 @@ async function cloneListItem(sourceItemId, actorUserId) {
   const clonedItem = {
     _id: newItemId,
     text: sourceItem.text,
+    note: sourceItem.note || "",
     sourceItemId: String(sourceItem.sourceItemId || sourceItemId),
     createdAt: now,
     updatedAt: now,
@@ -695,6 +702,7 @@ app.post("/api/lists/:id/items", auth, async (req, res) => {
     await listItems().insertOne({
       _id: itemId,
       text,
+      note: "",
       sourceItemId: itemId,
       createdAt: now,
       updatedAt: now,
@@ -725,7 +733,7 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
     const itemIndex = refs.findIndex((item) => String(item?.itemId || "") === itemId);
     if (itemIndex === -1) return res.status(404).json({ error: "Item not found" });
 
-    const { text, done } = req.body;
+    const { text, done, note } = req.body;
     const listUpdate = {};
     const itemUpdate = {};
 
@@ -740,6 +748,11 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
       const trimmed = String(text).trim();
       if (!trimmed) return res.status(400).json({ error: "Missing text" });
       itemUpdate.text = trimmed;
+      itemUpdate.updatedAt = new Date();
+    }
+
+    if (note !== undefined) {
+      itemUpdate.note = String(note || "");
       itemUpdate.updatedAt = new Date();
     }
 
