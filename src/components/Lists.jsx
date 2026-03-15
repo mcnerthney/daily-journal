@@ -975,6 +975,18 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                             }}
                         >
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <div
+                                    aria-hidden="true"
+                                    title="Drag item"
+                                    style={{
+                                        width: "12px",
+                                        alignSelf: "stretch",
+                                        borderRadius: "4px",
+                                        background: "transparent",
+                                        cursor: "grab",
+                                        flexShrink: 0,
+                                    }}
+                                />
                                 <input
                                     type="checkbox"
                                     checked={it.done}
@@ -1034,6 +1046,18 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                         {transferItemId === getItemId(it) ? "Close" : "Share / Copy"}
                                     </button>
                                 )}
+                                <div
+                                    aria-hidden="true"
+                                    title="Drag item"
+                                    style={{
+                                        width: "12px",
+                                        alignSelf: "stretch",
+                                        borderRadius: "4px",
+                                        background: "transparent",
+                                        cursor: "grab",
+                                        flexShrink: 0,
+                                    }}
+                                />
                             </div>
                             {transferEnabled && transferItemId === getItemId(it) && (
                                 <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", paddingLeft: "22px" }}>
