@@ -697,12 +697,14 @@ export default function App() {
                 <button
                   onClick={() => setActiveDate(today)}
                   style={{
-                    background: "none",
-                    border: "none",
+                    background: "var(--surface-soft)",
+                    border: "1px solid var(--ring)",
+                    borderRadius: "8px",
                     color: "var(--heading)",
                     cursor: "pointer",
                     fontSize: "12px",
-                    padding: 0,
+                    fontWeight: 600,
+                    padding: "6px 10px",
                   }}
                 >
                   Today
