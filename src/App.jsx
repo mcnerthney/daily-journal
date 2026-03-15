@@ -281,6 +281,10 @@ export default function App() {
     const activeDateOnly = new Date(active.getFullYear(), active.getMonth(), active.getDate());
     const dayDiff = Math.abs(Math.round((activeDateOnly - todayDate) / 86400000));
 
+    if (dayDiff === 0) {
+      return "Today";
+    }
+
     if (dayDiff <= 7) {
       return active.toLocaleDateString(undefined, { weekday: "long" });
     }
