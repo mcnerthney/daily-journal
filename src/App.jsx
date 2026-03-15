@@ -44,6 +44,12 @@ const THEMES = [
   { key: "festive", label: "Festive" },
 ];
 
+const JOURNAL_VIEW_LABELS = {
+  today: "Entry",
+  history: "History",
+  chart: "Stats",
+};
+
 // auth helper methods
 async function doLogin(email, password) {
   const res = await fetch(`${API}/login`, {
@@ -657,7 +663,7 @@ export default function App() {
                 <>
                   {["today", "history", "chart"].map(v => (
                     <button key={v} onClick={() => setView(v)} style={{ padding: "7px 16px", borderRadius: "10px", border: view === v ? "1px solid var(--header-btn-border)" : "1px solid var(--header-border)", background: view === v ? "var(--header-btn-bg)" : "transparent", color: "var(--header-btn-text)", cursor: "pointer", fontSize: "13px", fontWeight: 500, textTransform: "capitalize" }}>
-                      {v === "chart" ? "Stats" : v}
+                      {JOURNAL_VIEW_LABELS[v] || v}
                     </button>
                   ))}
                 </>
