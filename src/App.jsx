@@ -116,6 +116,7 @@ export default function App() {
   const [selectedListTitle, setSelectedListTitle] = useState("");
   const [publicListKey, setPublicListKey] = useState(null);
   const [publicListId, setPublicListId] = useState(null);
+  const [publicListInternalId, setPublicListInternalId] = useState(null);
   const [publicList, setPublicList] = useState(null);
 
   const isUuid = useCallback((v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v), []);
@@ -230,8 +231,12 @@ export default function App() {
         .then((list) => {
           setPublicList(list);
           setPublicListId(list.publicId || null);
+          setPublicListInternalId(list.listId || null);
         })
-        .catch(() => setPublicList(null));
+        .catch(() => {
+          setPublicList(null);
+          setPublicListInternalId(null);
+        });
     }
   }, [isUuid]);
 
@@ -407,9 +412,11 @@ export default function App() {
         if (list && (list.publicSlug === publicListKey || (publicListId && list.publicId === publicListId))) {
           if (list.deleted) {
             setPublicList(null);
+            setPublicListInternalId(null);
             showToast("Public list was deleted");
           } else {
             setPublicList(list);
+            setPublicListInternalId(list.listId || null);
             showToast("Public list updated");
           }
         }
@@ -519,10 +526,10 @@ export default function App() {
   // if we're viewing a public list, render it and nothing else
   if (publicListKey) {
     const visiblePublicItems = (publicList?.items || []).filter((it) => !it.done);
-    const canEditPublicList = Boolean(token && publicListId);
+    const canEditPublicList = Boolean(token && publicListInternalId);
     const openPublicListEditor = () => {
-      if (!publicListId) return;
-      const encodedId = encodeURIComponent(publicListId);
+      if (!publicListInternalId) return;
+      const encodedId = encodeURIComponent(publicListInternalId);
       const nextSearch = window.location.search || "";
       window.location.assign(`/${nextSearch}#lists/edit/${encodedId}`);
     };

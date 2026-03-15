@@ -392,6 +392,7 @@ async function hydrateListDoc(listDoc, options = {}) {
 
 function publicListPayload(listDoc, overrides = {}) {
   return {
+    listId: String(listDoc._id || ""),
     publicId: listDoc.publicId,
     publicSlug: listDoc.publicSlug,
     name: listDoc.name,
@@ -1200,7 +1201,7 @@ app.get("/api/public/:publicKey", async (req, res) => {
     const hydrated = await emitHydratedListUpdate(updatedDoc);
 
     const { _id, owner, sharedWith, shareWithEmails, ...data } = hydrated;
-    res.json(data);
+    res.json({ ...data, listId: String(_id || "") });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load public list" });

@@ -14,6 +14,7 @@ import {
 
 export default function Lists({ token, socket, selectedId: routeSelectedId, selectedItemId: routeSelectedItemId, onSelectList, onCloseList, onOpenItemDetails, onCloseItemDetails, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
+    const [listsLoaded, setListsLoaded] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
     const [selectedItemDetails, setSelectedItemDetails] = useState(null);
@@ -99,12 +100,14 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     // load lists
     useEffect(() => {
         if (!token) return;
+        setListsLoaded(false);
         fetchLists(authHeaders, { includeArchived: true })
             .then(setLists)
             .catch((e) => {
                 console.error(e);
                 if (e.code === 401) return; // handled by parent
-            });
+            })
+            .finally(() => setListsLoaded(true));
     }, [token]);
 
     // keep selection synced with hash route when App drives this screen
@@ -500,6 +503,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     };
 
     const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
+    const selectedExists = Boolean(getListId(selected));
     const selectedItemSummary = (selected.items || []).find((item) => getItemId(item) === String(selectedItemId || "")) || null;
     const selectedItem = selectedItemDetails && getItemId(selectedItemDetails) === String(selectedItemId || "")
         ? selectedItemDetails
@@ -651,7 +655,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const me = decodeToken(token).userId;
     const isOwner = selected.owner === me;
 
-    if (selectedId && !selected._id) {
+    if (selectedId && !selectedExists && !listsLoaded) {
         return (
             <div style={{ minHeight: "calc(100vh - 180px)", display: "grid", gap: "12px" }}>
                 <button
@@ -661,6 +665,21 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                     ← Back to lists
                 </button>
                 <div style={{ color: "var(--muted)" }}>Loading list...</div>
+                {error && <div style={{ color: "var(--error)" }}>{error}</div>}
+            </div>
+        );
+    }
+
+    if (selectedId && !selectedExists && listsLoaded) {
+        return (
+            <div style={{ minHeight: "calc(100vh - 180px)", display: "grid", gap: "12px" }}>
+                <button
+                    onClick={backToLists}
+                    style={{ justifySelf: "start", background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer", fontSize: "14px", padding: 0 }}
+                >
+                    ← Back to lists
+                </button>
+                <div style={{ color: "var(--muted)" }}>List not found or no longer accessible.</div>
                 {error && <div style={{ color: "var(--error)" }}>{error}</div>}
             </div>
         );
