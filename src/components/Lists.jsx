@@ -29,6 +29,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const [trashOver, setTrashOver] = useState(false);
     const dragListId = useRef(null);
     const longPressTimer = useRef(null);
+    const attachmentLongPressTimer = useRef(null);
     const [dragOverListId, setDragOverListId] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [transferItemId, setTransferItemId] = useState(null);
@@ -192,6 +193,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         longPressTimer.current = null;
     };
 
+    const clearAttachmentLongPressTimer = () => {
+        if (!attachmentLongPressTimer.current) return;
+        clearTimeout(attachmentLongPressTimer.current);
+        attachmentLongPressTimer.current = null;
+    };
+
     const openItemDetails = (itemId) => {
         const selectedListId = String(selectedId || "");
         const normalizedItemId = String(itemId || "");
@@ -227,7 +234,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     };
 
     useEffect(() => {
-        return () => clearLongPressTimer();
+        return () => {
+            clearLongPressTimer();
+            clearAttachmentLongPressTimer();
+        };
     }, []);
 
     const saveNewList = async () => {
@@ -554,6 +564,26 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         }
     };
 
+    const removeAttachment = async (source) => {
+        if (selected.archived) return;
+        const normalizedSource = String(source || "").trim();
+        if (!normalizedSource) return;
+        const shouldDelete = window.confirm("Delete this attachment?");
+        if (!shouldDelete) return;
+        await saveItemDetails({ removeImage: normalizedSource }, "Unable to delete attachment");
+    };
+
+    const startAttachmentLongPress = (source) => {
+        if (selected.archived) return;
+        const normalizedSource = String(source || "").trim();
+        if (!normalizedSource) return;
+        clearAttachmentLongPressTimer();
+        attachmentLongPressTimer.current = setTimeout(() => {
+            removeAttachment(normalizedSource);
+            attachmentLongPressTimer.current = null;
+        }, 550);
+    };
+
     // decode simple JWT to access userId for owner checks
     const decodeToken = (t) => {
         try {
@@ -649,11 +679,21 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                         <div style={{ display: "grid", gap: "8px" }}>
                             {itemImagesDraft.map((src, idx) => (
                                 isPdfAttachment(src) ? (
-                                    <div key={`${src}-${idx}`} style={{ display: "grid", gap: "6px" }}>
+                                    <div
+                                        key={`${src}-${idx}`}
+                                        style={{ display: "grid", gap: "6px" }}
+                                        title="Long press to delete attachment"
+                                        onMouseDown={() => startAttachmentLongPress(src)}
+                                        onMouseUp={clearAttachmentLongPressTimer}
+                                        onMouseLeave={clearAttachmentLongPressTimer}
+                                        onTouchStart={() => startAttachmentLongPress(src)}
+                                        onTouchEnd={clearAttachmentLongPressTimer}
+                                        onTouchCancel={clearAttachmentLongPressTimer}
+                                    >
                                         <embed
                                             src={src}
                                             type="application/pdf"
-                                            style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)" }}
+                                            style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)", pointerEvents: "none" }}
                                         />
                                     </div>
                                 ) : (
@@ -661,6 +701,13 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                         key={`${src}-${idx}`}
                                         src={src}
                                         alt={`Note image ${idx + 1}`}
+                                        title="Long press to delete attachment"
+                                        onMouseDown={() => startAttachmentLongPress(src)}
+                                        onMouseUp={clearAttachmentLongPressTimer}
+                                        onMouseLeave={clearAttachmentLongPressTimer}
+                                        onTouchStart={() => startAttachmentLongPress(src)}
+                                        onTouchEnd={clearAttachmentLongPressTimer}
+                                        onTouchCancel={clearAttachmentLongPressTimer}
                                         style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid var(--border)" }}
                                     />
                                 )

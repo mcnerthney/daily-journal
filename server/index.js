@@ -759,7 +759,7 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
     const itemIndex = refs.findIndex((item) => String(item?.itemId || "") === itemId);
     if (itemIndex === -1) return res.status(404).json({ error: "Item not found" });
 
-    const { text, done, note, images, addImage } = req.body;
+    const { text, done, note, images, addImage, removeImage } = req.body;
     const listUpdate = {};
     const itemUpdate = {};
 
@@ -804,6 +804,17 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
       );
     }
 
+    if (removeImage !== undefined) {
+      const imageValue = String(removeImage || "").trim();
+      if (!imageValue) {
+        return res.status(400).json({ error: "Missing removeImage" });
+      }
+      await listItems().updateOne(
+        { _id: itemId },
+        { $pull: { images: imageValue }, $set: { updatedAt: new Date() } }
+      );
+    }
+
     if (Object.keys(itemUpdate).length > 0) {
       await listItems().updateOne({ _id: itemId }, { $set: itemUpdate });
     }
@@ -813,7 +824,7 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
     }
 
     let hydrated = null;
-    if (Object.keys(itemUpdate).length > 0 || addImage !== undefined) {
+    if (Object.keys(itemUpdate).length > 0 || addImage !== undefined || removeImage !== undefined) {
       const sharedUpdate = await emitSharedItemUpdated(itemId);
       hydrated = sharedUpdate.hydratedLists.find(
         (listDoc) => String(listDoc?._id || "") === String(lookup.listDoc._id)
