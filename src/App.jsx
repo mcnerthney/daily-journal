@@ -266,6 +266,23 @@ export default function App() {
   // keep a constant for the real "today" so we can label toasts appropriately
   const today = currentDate;
   const activeDateLabel = getRelativeDateLabel(activeDate, today);
+  const activeDateFieldLabel = (() => {
+    const [yearStr, monthStr, dayStr] = activeDate.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    if (!year || !month || !day) return activeDateLabel;
+
+    const active = new Date(year, month - 1, day);
+    if (Number.isNaN(active.getTime())) return activeDateLabel;
+
+    const now = new Date();
+    if (active.getMonth() === now.getMonth() && active.getFullYear() === now.getFullYear()) {
+      return active.toLocaleDateString(undefined, { weekday: "long" });
+    }
+
+    return activeDateLabel;
+  })();
   const activeDatePromptTarget =
     activeDateLabel === "Today"
       ? "today"
@@ -692,7 +709,7 @@ export default function App() {
         ) : view === "today" ? (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", fontSize: "13px", color: "var(--muted-strong)" }}>
-              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--heading)" }}>{activeDateLabel}</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--heading)" }}>{activeDateFieldLabel}</span>
               {activeDate !== today && (
                 <button
                   onClick={() => setActiveDate(today)}
