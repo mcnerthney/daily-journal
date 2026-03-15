@@ -71,6 +71,7 @@ export default function BpChart({ entries }) {
     const sysPath = sysPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
     const diaPath = diaPts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ');
     const hoverX = hoverIndex != null ? getXForIndex(hoverIndex) : null;
+    const line120Y = Math.min(height - padding, Math.max(padding, getYForValue(120)));
     const line130Y = Math.min(height - padding, Math.max(padding, getYForValue(130)));
     const line80Y = Math.min(height - padding, Math.max(padding, getYForValue(80)));
 
@@ -88,6 +89,16 @@ export default function BpChart({ entries }) {
                 onMouseLeave={() => setHoverIndex(null)}
             >
                 <rect width="100%" height="100%" fill="var(--surface)" />
+                <line
+                    x1={padding}
+                    y1={line120Y}
+                    x2={width - padding}
+                    y2={line120Y}
+                    stroke="#f6c28b"
+                    strokeWidth="1"
+                    strokeDasharray="8 3 2 3"
+                    opacity="0.9"
+                />
                 <line
                     x1={padding}
                     y1={line130Y}
