@@ -802,6 +802,26 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                     }}
                                     disabled={!!selected.archived}
                                 />
+                                {(String(it.note || "").trim() || (Array.isArray(it.images) && it.images.length > 0)) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openItemDetails(getItemId(it))}
+                                        title="Has note details"
+                                        aria-label="Has note details"
+                                        style={{
+                                            background: "none",
+                                            border: "none",
+                                            padding: 0,
+                                            fontSize: "14px",
+                                            color: "var(--muted)",
+                                            lineHeight: 1,
+                                            flexShrink: 0,
+                                            cursor: "pointer",
+                                        }}
+                                    >
+                                        📝
+                                    </button>
+                                )}
                                 {!selected.archived && transferEnabled && (
                                     <button
                                         type="button"
