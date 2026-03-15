@@ -682,18 +682,33 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                     <div
                                         key={`${src}-${idx}`}
                                         style={{ display: "grid", gap: "6px" }}
-                                        title="Long press to delete attachment"
-                                        onMouseDown={() => startAttachmentLongPress(src)}
-                                        onMouseUp={clearAttachmentLongPressTimer}
-                                        onMouseLeave={clearAttachmentLongPressTimer}
-                                        onTouchStart={() => startAttachmentLongPress(src)}
-                                        onTouchEnd={clearAttachmentLongPressTimer}
-                                        onTouchCancel={clearAttachmentLongPressTimer}
                                     >
+                                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeAttachment(src)}
+                                                title="Delete attachment"
+                                                aria-label="Delete attachment"
+                                                style={{
+                                                    width: "22px",
+                                                    height: "22px",
+                                                    borderRadius: "999px",
+                                                    border: "1px solid var(--border)",
+                                                    background: "var(--surface)",
+                                                    color: "var(--error)",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    lineHeight: 1,
+                                                    padding: 0,
+                                                }}
+                                            >
+                                                x
+                                            </button>
+                                        </div>
                                         <embed
                                             src={src}
                                             type="application/pdf"
-                                            style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)", pointerEvents: "none" }}
+                                            style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)" }}
                                         />
                                     </div>
                                 ) : (
