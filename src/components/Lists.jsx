@@ -961,46 +961,46 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                 </ul>
 
                 {isOwner && (
-                    <div style={{ marginTop: "10px" }}>
-                        <label style={{ fontSize: "14px" }}>
-                            <input
-                                type="checkbox"
-                                checked={!!selected.public}
-                                onChange={async () => {
-                                    try {
-                                        const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
-                                        applyListUpdate(updated);
-                                        setError("");
-                                    } catch (e) {
-                                        console.error(e);
-                                        setError(formatActionError("Unable to update public flag", e));
-                                    }
-                                }}
-                            />{' '}
-                            Make public (guest view)
-                        </label>
-                        {selected.public && (selected.publicSlug || selected.publicId) && (
-                            <div style={{ marginTop: "4px", fontSize: "12px", display: "grid", gap: "2px" }}>
-                                <div>
-                                    Public views: {selected.publicViewCount || 0}
-                                </div>
-                                <div>
-                                    Last viewed: {publicLastViewedAtLabel}
-                                </div>
-                                {selected.publicSlug && (
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "auto", paddingTop: "24px" }}>
+                        <div style={{ width: "100%", display: "grid", gap: "8px" }}>
+                            <label style={{ fontSize: "14px" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={!!selected.public}
+                                    onChange={async () => {
+                                        try {
+                                            const updated = await updateList(selectedId, { public: !selected.public }, authHeaders);
+                                            applyListUpdate(updated);
+                                            setError("");
+                                        } catch (e) {
+                                            console.error(e);
+                                            setError(formatActionError("Unable to update public flag", e));
+                                        }
+                                    }}
+                                />{' '}
+                                Make public (guest view)
+                            </label>
+                            {selected.public && (selected.publicSlug || selected.publicId) && (
+                                <div style={{ fontSize: "12px", display: "grid", gap: "2px" }}>
                                     <div>
-                                        Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
+                                        Public views: {selected.publicViewCount || 0}
                                     </div>
-                                )}
-                                {selected.publicId && (
                                     <div>
-                                        UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
+                                        Last viewed: {publicLastViewedAtLabel}
                                     </div>
-                                )}
-                            </div>
-                        )}
-                        {!selected.archived && (
-                            <div style={{ marginTop: "8px" }}>
+                                    {selected.publicSlug && (
+                                        <div>
+                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
+                                        </div>
+                                    )}
+                                    {selected.publicId && (
+                                        <div>
+                                            UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {!selected.archived && (
                                 <label style={{ fontSize: "14px" }}>
                                     <input
                                         type="checkbox"
@@ -1009,12 +1009,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                     />{' '}
                                     Enable Share / Copy
                                 </label>
-                            </div>
-                        )}
-                    </div>
-                )}
-                {isOwner && (
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "auto", paddingTop: "24px" }}>
+                            )}
+                        </div>
                         {!selected.archived && (
                             <button onClick={archiveCurrent} style={{ width: "fit-content", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "10px", color: "var(--error)", cursor: "pointer", padding: "10px 12px", fontSize: "14px" }}>Archive list</button>
                         )}
