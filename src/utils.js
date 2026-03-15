@@ -90,6 +90,80 @@ export async function updateList(id, data, headers = {}) {
     return res.json();
 }
 
+export async function createListItem(listId, data, headers = {}) {
+    const res = await fetch(`${API}/lists/${listId}/items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "create item failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
+export async function updateListItem(listId, itemId, data, headers = {}) {
+    const res = await fetch(`${API}/lists/${listId}/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "update item failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
+export async function deleteListItem(listId, itemId, headers = {}) {
+    const res = await fetch(`${API}/lists/${listId}/items/${itemId}`, {
+        method: "DELETE",
+        headers,
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "delete item failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
+export async function reorderListItems(listId, itemIds, headers = {}) {
+    const res = await fetch(`${API}/lists/${listId}/items/reorder`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ itemIds }),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "reorder items failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
+export async function transferListItem(listId, itemId, data, headers = {}) {
+    const res = await fetch(`${API}/lists/${listId}/items/${itemId}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "transfer item failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
 export async function deleteList(id, headers = {}, options = {}) {
     const params = new URLSearchParams();
     if (options.permanent) params.set("permanent", "true");

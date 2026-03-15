@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchLists, createList, updateList, deleteList } from "../utils";
+import {
+    fetchLists,
+    createList,
+    updateList,
+    deleteList,
+    createListItem,
+    updateListItem,
+    deleteListItem,
+    reorderListItems,
+    transferListItem,
+} from "../utils";
 
 export default function Lists({ token, socket, selectedId: routeSelectedId, onSelectList, onCloseList, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
@@ -10,12 +20,14 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
     const [error, setError] = useState("");
-    const dragIndex = useRef(null);
+    const dragItemId = useRef(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
     const [trashOver, setTrashOver] = useState(false);
     const dragListId = useRef(null);
     const [dragOverListId, setDragOverListId] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
+    const [transferItemId, setTransferItemId] = useState(null);
+    const [transferTargetId, setTransferTargetId] = useState("");
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -39,6 +51,11 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const getListId = (list) => {
         if (!list) return "";
         return String(list._id ?? list.id ?? "");
+    };
+
+    const getItemId = (item) => {
+        if (!item) return "";
+        return String(item.id ?? item.itemId ?? "");
     };
 
     const sortLists = (items) => {
@@ -88,6 +105,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         setNewItem("");
         setShareInput("");
         setError("");
+        setTransferItemId(null);
+        setTransferTargetId("");
     }, [routeSelectedId]);
 
     // sync title draft when the selected list or its name changes
@@ -128,6 +147,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         }
         setNewItem("");
         setShareInput("");
+        setTransferItemId(null);
+        setTransferTargetId("");
     };
 
     const backToLists = () => {
@@ -139,23 +160,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         setNewItem("");
         setShareInput("");
         setError("");
+        setTransferItemId(null);
+        setTransferTargetId("");
     };
 
     const applyListUpdate = (updated) => {
         upsertList(updated);
-    };
-
-    const saveItems = async (items, errorMessage) => {
-        const selectedListId = String(selectedId || "");
-        if (!selectedListId) return;
-        try {
-            const updated = await updateList(selectedListId, { items }, authHeaders);
-            applyListUpdate(updated);
-            setError("");
-        } catch (e) {
-            console.error(e);
-            setError(formatActionError(errorMessage, e));
-        }
     };
 
     const saveNewList = async () => {
@@ -175,10 +185,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const addItem = async () => {
         const selectedListId = String(selectedId || "");
         if (!newItem.trim() || !selectedListId) return;
-        const list = lists.find((l) => getListId(l) === selectedListId);
-        const items = [{ text: newItem.trim(), done: false }, ...(list?.items || [])];
         try {
-            const updated = await updateList(selectedListId, { items }, authHeaders);
+            const updated = await createListItem(selectedListId, { text: newItem.trim() }, authHeaders);
             applyListUpdate(updated);
             setNewItem("");
             setError("");
@@ -188,29 +196,112 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
         }
     };
 
-    const toggleItem = async (index) => {
+    const toggleItem = async (itemId) => {
         const selectedListId = String(selectedId || "");
         const list = lists.find((l) => getListId(l) === selectedListId);
         if (!list) return;
-        const items = list.items.map((it, i) => (i === index ? { ...it, done: !it.done } : it));
-        await saveItems(items, "Unable to toggle item");
+        const item = (list.items || []).find((entry) => getItemId(entry) === itemId);
+        if (!item) return;
+        try {
+            const updated = await updateListItem(selectedListId, itemId, { done: !item.done }, authHeaders);
+            applyListUpdate(updated);
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError("Unable to toggle item", e));
+        }
     };
 
-    const renameItem = async (index, value) => {
+    const renameItem = async (itemId, value) => {
         const selectedListId = String(selectedId || "");
         const list = lists.find((l) => getListId(l) === selectedListId);
         if (!list) return;
         const text = value.trim();
-        if (!text || text === list.items?.[index]?.text) return;
-        const items = list.items.map((it, i) => (i === index ? { ...it, text } : it));
-        await saveItems(items, "Unable to rename item");
+        const item = (list.items || []).find((entry) => getItemId(entry) === itemId);
+        if (!text || text === item?.text) return;
+        try {
+            const updated = await updateListItem(selectedListId, itemId, { text }, authHeaders);
+            applyListUpdate(updated);
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError("Unable to rename item", e));
+        }
     };
 
-    const deleteItem = async (index) => {
+    const deleteItem = async (itemId) => {
         const selectedListId = String(selectedId || "");
+        if (!selectedListId || !itemId) return;
+        try {
+            const updated = await deleteListItem(selectedListId, itemId, authHeaders);
+            applyListUpdate(updated);
+            if (transferItemId === itemId) {
+                setTransferItemId(null);
+                setTransferTargetId("");
+            }
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError("Unable to delete item", e));
+        }
+    };
+
+    const reorderItems = async (targetIndex) => {
+        const selectedListId = String(selectedId || "");
+        const draggedItemId = String(dragItemId.current || "");
         const list = lists.find((l) => getListId(l) === selectedListId);
-        const items = (list?.items || []).filter((_, itemIndex) => itemIndex !== index);
-        await saveItems(items, "Unable to delete item");
+        const items = [...(list?.items || [])];
+        const fromIndex = items.findIndex((item) => getItemId(item) === draggedItemId);
+        if (!selectedListId || !draggedItemId || fromIndex === -1 || fromIndex === targetIndex) {
+            setDragOverIndex(null);
+            dragItemId.current = null;
+            return;
+        }
+
+        const reordered = [...items];
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(targetIndex, 0, moved);
+
+        try {
+            const updated = await reorderListItems(selectedListId, reordered.map((item) => getItemId(item)), authHeaders);
+            applyListUpdate(updated);
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError("Unable to reorder items", e));
+        } finally {
+            setDragOverIndex(null);
+            dragItemId.current = null;
+        }
+    };
+
+    const openTransferPanel = (itemId) => {
+        const nextItemId = transferItemId === itemId ? null : itemId;
+        setTransferItemId(nextItemId);
+        if (nextItemId && !transferTargetId) {
+            const fallbackTarget = activeLists.find((list) => getListId(list) !== String(selectedId || ""));
+            setTransferTargetId(getListId(fallbackTarget));
+        }
+        if (!nextItemId) {
+            setTransferTargetId("");
+        }
+    };
+
+    const handleTransferItem = async (itemId, mode) => {
+        const selectedListId = String(selectedId || "");
+        if (!selectedListId || !itemId || !transferTargetId) return;
+        try {
+            const result = await transferListItem(selectedListId, itemId, { targetListId: transferTargetId, mode }, authHeaders);
+            if (result?.targetList) {
+                applyListUpdate(result.targetList);
+            }
+            setTransferItemId(null);
+            setTransferTargetId("");
+            setError("");
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError(`Unable to ${mode} item`, e));
+        }
     };
 
     const changeName = async (name) => {
@@ -332,6 +423,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
     const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
     const activeLists = sortLists(lists.filter((l) => !l.archived));
     const archivedLists = sortLists(lists.filter((l) => l.archived));
+    const transferTargets = sortLists(lists.filter((list) => getListId(list) !== String(selectedId || "")));
     const publicLastViewedAtLabel = selected.publicLastViewedAt
         ? new Date(selected.publicLastViewedAt).toLocaleString()
         : "Never";
@@ -415,10 +507,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                         onDragLeave={() => setTrashOver(false)}
                         onDrop={async () => {
                             setTrashOver(false);
-                            if (dragIndex.current !== null) {
-                                const idx = dragIndex.current;
-                                dragIndex.current = null;
-                                await deleteItem(idx);
+                            if (dragItemId.current) {
+                                const itemId = dragItemId.current;
+                                dragItemId.current = null;
+                                await deleteItem(itemId);
                             }
                         }}
                         title="Drop here to delete"
@@ -443,60 +535,100 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, onSe
                 <ul style={{ padding: 0, listStyle: "none" }}>
                     {(selected.items || []).map((it, idx) => (
                         <li
-                            key={`${selectedId}-${idx}-${it.text}`}
+                            key={`${selectedId}-${getItemId(it)}-${it.updatedAt || ""}`}
                             draggable
-                            onDragStart={() => { dragIndex.current = idx; }}
+                            onDragStart={() => { dragItemId.current = getItemId(it); }}
                             onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
-                            onDrop={async () => {
-                                if (dragIndex.current === null || dragIndex.current === idx) {
-                                    setDragOverIndex(null);
-                                    dragIndex.current = null;
-                                    return;
-                                }
-                                const list = lists.find((l) => getListId(l) === String(selectedId || ""));
-                                const items = [...(list?.items || [])];
-                                const [moved] = items.splice(dragIndex.current, 1);
-                                items.splice(idx, 0, moved);
-                                setDragOverIndex(null);
-                                dragIndex.current = null;
-                                await saveItems(items, "Unable to reorder items");
-                            }}
-                            onDragEnd={() => { setDragOverIndex(null); setTrashOver(false); dragIndex.current = null; }}
+                            onDrop={async () => { await reorderItems(idx); }}
+                            onDragEnd={() => { setDragOverIndex(null); setTrashOver(false); dragItemId.current = null; }}
                             style={{
-                                display: "flex",
-                                alignItems: "center",
+                                display: "grid",
                                 gap: "6px",
                                 marginBottom: "8px",
                                 borderTop: dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
                             }}
                         >
-                            <input
-                                type="checkbox"
-                                checked={it.done}
-                                onChange={() => toggleItem(idx)}
-                                style={{
-                                    width: "16px",
-                                    height: "16px",
-                                    accentColor: it.done ? "var(--muted)" : "var(--text)",
-                                    cursor: "pointer",
-                                    flexShrink: 0,
-                                }}
-                            />
-                            <input
-                                defaultValue={it.text}
-                                onBlur={(e) => renameItem(idx, e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") e.currentTarget.blur();
-                                }}
-                                style={{
-                                    ...inputStyle,
-                                    flex: 1,
-                                    padding: "6px",
-                                    color: it.done ? "var(--muted)" : "var(--text)",
-                                    //textDecoration: it.done ? "line-through" : "none",
-                                }}
-                                disabled={!!selected.archived}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <input
+                                    type="checkbox"
+                                    checked={it.done}
+                                    onChange={() => toggleItem(getItemId(it))}
+                                    style={{
+                                        width: "16px",
+                                        height: "16px",
+                                        accentColor: it.done ? "var(--muted)" : "var(--text)",
+                                        cursor: "pointer",
+                                        flexShrink: 0,
+                                    }}
+                                />
+                                <input
+                                    defaultValue={it.text}
+                                    onBlur={(e) => renameItem(getItemId(it), e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") e.currentTarget.blur();
+                                    }}
+                                    style={{
+                                        ...inputStyle,
+                                        flex: 1,
+                                        padding: "6px",
+                                        color: it.done ? "var(--muted)" : "var(--text)",
+                                    }}
+                                    disabled={!!selected.archived}
+                                />
+                                {!selected.archived && (
+                                    <button
+                                        type="button"
+                                        onClick={() => openTransferPanel(getItemId(it))}
+                                        style={{
+                                            ...createButtonStyle,
+                                            padding: "6px 10px",
+                                            fontSize: "12px",
+                                        }}
+                                    >
+                                        {transferItemId === getItemId(it) ? "Close" : "Share / Copy"}
+                                    </button>
+                                )}
+                            </div>
+                            {transferItemId === getItemId(it) && (
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", paddingLeft: "22px" }}>
+                                    {transferTargets.length > 0 ? (
+                                        <>
+                                            <select
+                                                value={transferTargetId}
+                                                onChange={(e) => setTransferTargetId(e.target.value)}
+                                                style={{ ...inputStyle, padding: "6px", minWidth: "180px" }}
+                                            >
+                                                <option value="" disabled>Select destination</option>
+                                                {transferTargets.map((list) => (
+                                                    <option key={getListId(list)} value={getListId(list)}>
+                                                        {list.archived ? `${list.name} (archived)` : list.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTransferItem(getItemId(it), "share")}
+                                                disabled={!transferTargetId}
+                                                style={{ ...createButtonStyle, padding: "6px 10px", fontSize: "12px" }}
+                                            >
+                                                Share
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleTransferItem(getItemId(it), "copy")}
+                                                disabled={!transferTargetId}
+                                                style={{ ...createButtonStyle, padding: "6px 10px", fontSize: "12px" }}
+                                            >
+                                                Copy
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <div style={{ color: "var(--muted)", fontSize: "12px" }}>
+                                            Create another list first, then you can share or copy this item.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </li>
                     ))}
                 </ul>

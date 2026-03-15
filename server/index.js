@@ -203,6 +203,10 @@ function lists() {
   return db.collection("lists");
 }
 
+function listItems() {
+  return db.collection("list_items");
+}
+
 function slugifyListName(name = "") {
   return name
     .toLowerCase()
@@ -226,6 +230,250 @@ async function generateUniquePublicSlug(name, excludeId = null) {
     candidate = `${base}-${i}`;
     i += 1;
   }
+}
+
+function canAccessList(listDoc, userId) {
+  return listDoc.owner === userId || (listDoc.sharedWith || []).includes(userId);
+}
+
+function normalizeStoredItemRef(item) {
+  if (typeof item === "string") {
+    return { itemId: "", text: item, done: false };
+  }
+
+  if (!item || typeof item !== "object") {
+    return { itemId: "", text: "", done: false };
+  }
+
+  return {
+    itemId: String(item.itemId || item.id || ""),
+    text: typeof item.text === "string" ? item.text : "",
+    done: !!item.done,
+    sourceItemId: item.sourceItemId || item.originItemId || null,
+    createdAt: item.createdAt || null,
+    createdBy: item.createdBy || null,
+  };
+}
+
+async function persistListItemsForList(listDoc, rawItems = [], actorUserId = listDoc.owner) {
+  const refs = [];
+  const upserts = [];
+  const now = new Date();
+
+  for (const rawItem of rawItems) {
+    const normalized = normalizeStoredItemRef(rawItem);
+    const itemId = normalized.itemId || crypto.randomUUID();
+    const text = String(normalized.text || "").trim();
+
+    if (!itemId || !text) continue;
+
+    refs.push({ itemId, done: normalized.done });
+    upserts.push({
+      itemId,
+      text,
+      sourceItemId: String(normalized.sourceItemId || itemId),
+      createdAt: normalized.createdAt ? new Date(normalized.createdAt) : now,
+      createdBy: normalized.createdBy || actorUserId,
+      updatedAt: now,
+    });
+  }
+
+  if (upserts.length > 0) {
+    await Promise.all(
+      upserts.map((item) =>
+        listItems().updateOne(
+          { _id: item.itemId },
+          {
+            $set: {
+              text: item.text,
+              sourceItemId: item.sourceItemId,
+              updatedAt: item.updatedAt,
+            },
+            $setOnInsert: {
+              createdAt: item.createdAt,
+              createdBy: item.createdBy,
+            },
+          },
+          { upsert: true }
+        )
+      )
+    );
+  }
+
+  return refs;
+}
+
+function listNeedsItemMigration(listDoc) {
+  return Array.isArray(listDoc?.items) && listDoc.items.some((item) => {
+    if (typeof item === "string") return true;
+    if (!item || typeof item !== "object") return true;
+    return !item.itemId || Object.prototype.hasOwnProperty.call(item, "text") || Object.prototype.hasOwnProperty.call(item, "id");
+  });
+}
+
+async function migrateListItems(listDoc) {
+  if (!listNeedsItemMigration(listDoc)) {
+    return listDoc;
+  }
+
+  const refs = await persistListItemsForList(listDoc, listDoc.items || [], listDoc.owner);
+  await lists().updateOne(
+    { _id: listDoc._id },
+    { $set: { items: refs } }
+  );
+
+  return { ...listDoc, items: refs };
+}
+
+async function hydrateListDoc(listDoc) {
+  if (!listDoc) return null;
+
+  const migrated = await migrateListItems(listDoc);
+  const refs = Array.isArray(migrated.items)
+    ? migrated.items
+      .map((item) => ({ itemId: String(item?.itemId || ""), done: !!item?.done }))
+      .filter((item) => item.itemId)
+    : [];
+
+  if (refs.length === 0) {
+    return { ...migrated, items: [] };
+  }
+
+  const itemIds = [...new Set(refs.map((item) => item.itemId))];
+  const itemDocs = await listItems().find({ _id: { $in: itemIds } }).toArray();
+  const itemMap = new Map(itemDocs.map((item) => [String(item._id), item]));
+
+  return {
+    ...migrated,
+    items: refs.map((ref) => {
+      const itemDoc = itemMap.get(ref.itemId);
+      return {
+        id: ref.itemId,
+        itemId: ref.itemId,
+        text: itemDoc?.text || "",
+        done: ref.done,
+        sourceItemId: itemDoc?.sourceItemId || ref.itemId,
+        createdAt: itemDoc?.createdAt || null,
+        updatedAt: itemDoc?.updatedAt || null,
+        createdBy: itemDoc?.createdBy || null,
+      };
+    }),
+  };
+}
+
+function publicListPayload(listDoc, overrides = {}) {
+  return {
+    publicId: listDoc.publicId,
+    publicSlug: listDoc.publicSlug,
+    name: listDoc.name,
+    items: listDoc.items || [],
+    ...overrides,
+  };
+}
+
+async function emitHydratedListUpdate(listDoc) {
+  const hydrated = await hydrateListDoc(listDoc);
+  const recipients = [hydrated.owner, ...(hydrated.sharedWith || [])];
+  recipients.forEach((recipient) => io.to(recipient).emit("list:updated", hydrated));
+
+  if (hydrated.public && hydrated.publicId) {
+    io.to(`public-list:id:${hydrated.publicId}`).emit("public-list:updated", {
+      list: publicListPayload(hydrated),
+    });
+  }
+
+  if (hydrated.public && hydrated.publicSlug) {
+    io.to(`public-list:slug:${hydrated.publicSlug}`).emit("public-list:updated", {
+      list: publicListPayload(hydrated),
+    });
+  }
+
+  return hydrated;
+}
+
+async function emitSharedItemUpdated(itemId) {
+  const normalizedItemId = String(itemId || "");
+  if (!normalizedItemId) {
+    return { item: null, hydratedLists: [] };
+  }
+
+  const itemDoc = await listItems().findOne({ _id: normalizedItemId });
+  if (!itemDoc) {
+    return { item: null, hydratedLists: [] };
+  }
+
+  const referencingLists = await lists().find({ "items.itemId": normalizedItemId }).toArray();
+  const hydratedLists = await Promise.all(referencingLists.map((listDoc) => emitHydratedListUpdate(listDoc)));
+
+  const payload = {
+    item: {
+      id: normalizedItemId,
+      itemId: normalizedItemId,
+      text: itemDoc.text || "",
+      sourceItemId: itemDoc.sourceItemId || normalizedItemId,
+      createdAt: itemDoc.createdAt || null,
+      updatedAt: itemDoc.updatedAt || null,
+      createdBy: itemDoc.createdBy || null,
+    },
+    listIds: hydratedLists.map((listDoc) => String(listDoc?._id || "")).filter(Boolean),
+  };
+
+  const recipients = new Set();
+  hydratedLists.forEach((listDoc) => {
+    recipients.add(listDoc.owner);
+    (listDoc.sharedWith || []).forEach((userId) => recipients.add(userId));
+  });
+  recipients.forEach((recipient) => {
+    io.to(recipient).emit("item-updated", payload);
+    io.to(recipient).emit("item:updated", payload);
+  });
+
+  return { item: payload.item, hydratedLists };
+}
+
+async function removeOrphanedListItem(itemId) {
+  if (!itemId) return;
+
+  const usage = await lists().countDocuments({ "items.itemId": itemId });
+  if (usage === 0) {
+    await listItems().deleteOne({ _id: itemId });
+  }
+}
+
+async function cloneListItem(sourceItemId, actorUserId) {
+  const sourceItem = await listItems().findOne({ _id: sourceItemId });
+  if (!sourceItem) return null;
+
+  const newItemId = crypto.randomUUID();
+  const now = new Date();
+  const clonedItem = {
+    _id: newItemId,
+    text: sourceItem.text,
+    sourceItemId: String(sourceItem.sourceItemId || sourceItemId),
+    createdAt: now,
+    updatedAt: now,
+    createdBy: actorUserId,
+  };
+
+  await listItems().insertOne(clonedItem);
+  return clonedItem;
+}
+
+async function findAccessibleListOrThrow(id, userId) {
+  if (!ObjectId.isValid(id)) {
+    return { error: { status: 400, body: { error: "Invalid list id" } } };
+  }
+
+  const listDoc = await lists().findOne({ _id: new ObjectId(id) });
+  if (!listDoc) {
+    return { error: { status: 404, body: { error: "Not found" } } };
+  }
+
+  if (!canAccessList(listDoc, userId)) {
+    return { error: { status: 403, body: { error: "Forbidden" } } };
+  }
+
+  return { listDoc };
 }
 
 // ── Health check ─────────────────────────────────────────────────────────────
@@ -368,7 +616,8 @@ app.get("/api/lists", auth, async (req, res) => {
       const users = await db.collection("users").find({ _id: { $in: ownerIds.map(id => new ObjectId(id)) } }).toArray();
       ownerMap = users.reduce((m, u) => ({ ...m, [u._id.toString()]: u.email }), {});
     }
-    const enriched = docs
+    const hydratedDocs = await Promise.all(docs.map((doc) => hydrateListDoc(doc)));
+    const enriched = hydratedDocs
       .map(d => ({ ...d, ownerEmail: ownerMap[d.owner] || "" }))
       .sort((a, b) => {
         const toOrder = (list) => {
@@ -411,45 +660,207 @@ app.post("/api/lists", auth, async (req, res) => {
     const doc = {
       name,
       owner,
-      items,
+      items: [],
       sortOrder: minSortOrder - 1,
       sharedWith,
       shareWithEmails,
       publicViewCount: 0,
       publicLastViewedAt: null,
     };
+    doc.items = await persistListItemsForList(doc, items, owner);
     if (isPublic) {
       doc.public = true;
       doc.publicId = crypto.randomUUID();
       doc.publicSlug = await generateUniquePublicSlug(name);
     }
     const result = await lists().insertOne(doc);
-    const saved = { ...doc, _id: result.insertedId };
-    io.to(owner).emit("list:updated", saved);
-    if (saved.public && saved.publicId) {
-      io.to(`public-list:id:${saved.publicId}`).emit("public-list:updated", {
-        list: {
-          publicId: saved.publicId,
-          publicSlug: saved.publicSlug,
-          name: saved.name,
-          items: saved.items || [],
-        },
-      });
-    }
-    if (saved.public && saved.publicSlug) {
-      io.to(`public-list:slug:${saved.publicSlug}`).emit("public-list:updated", {
-        list: {
-          publicId: saved.publicId,
-          publicSlug: saved.publicSlug,
-          name: saved.name,
-          items: saved.items || [],
-        },
-      });
-    }
+    const saved = await emitHydratedListUpdate({ ...doc, _id: result.insertedId });
     res.json(saved);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create list" });
+  }
+});
+
+app.post("/api/lists/:id/items", auth, async (req, res) => {
+  try {
+    const lookup = await findAccessibleListOrThrow(req.params.id, req.userId);
+    if (lookup.error) return res.status(lookup.error.status).json(lookup.error.body);
+
+    const text = String(req.body.text || "").trim();
+    if (!text) return res.status(400).json({ error: "Missing text" });
+
+    const itemId = crypto.randomUUID();
+    const now = new Date();
+    await listItems().insertOne({
+      _id: itemId,
+      text,
+      sourceItemId: itemId,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: req.userId,
+    });
+
+    await lists().updateOne(
+      { _id: lookup.listDoc._id },
+      { $push: { items: { $each: [{ itemId, done: false }], $position: 0 } } }
+    );
+
+    const updatedList = await lists().findOne({ _id: lookup.listDoc._id });
+    const hydrated = await emitHydratedListUpdate(updatedList);
+    res.json(hydrated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add item" });
+  }
+});
+
+app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
+  try {
+    const lookup = await findAccessibleListOrThrow(req.params.id, req.userId);
+    if (lookup.error) return res.status(lookup.error.status).json(lookup.error.body);
+
+    const itemId = String(req.params.itemId || "");
+    const refs = Array.isArray(lookup.listDoc.items) ? lookup.listDoc.items : [];
+    const itemIndex = refs.findIndex((item) => String(item?.itemId || "") === itemId);
+    if (itemIndex === -1) return res.status(404).json({ error: "Item not found" });
+
+    const { text, done } = req.body;
+    const listUpdate = {};
+    const itemUpdate = {};
+
+    if (typeof done === "boolean") {
+      const nextRefs = refs.map((item, index) =>
+        index === itemIndex ? { ...item, done } : item
+      );
+      listUpdate.items = nextRefs;
+    }
+
+    if (text !== undefined) {
+      const trimmed = String(text).trim();
+      if (!trimmed) return res.status(400).json({ error: "Missing text" });
+      itemUpdate.text = trimmed;
+      itemUpdate.updatedAt = new Date();
+    }
+
+    if (Object.keys(itemUpdate).length > 0) {
+      await listItems().updateOne({ _id: itemId }, { $set: itemUpdate });
+    }
+
+    if (Object.keys(listUpdate).length > 0) {
+      await lists().updateOne({ _id: lookup.listDoc._id }, { $set: listUpdate });
+    }
+
+    let hydrated = null;
+    if (Object.keys(itemUpdate).length > 0) {
+      const sharedUpdate = await emitSharedItemUpdated(itemId);
+      hydrated = sharedUpdate.hydratedLists.find(
+        (listDoc) => String(listDoc?._id || "") === String(lookup.listDoc._id)
+      ) || null;
+    }
+
+    if (!hydrated) {
+      const updatedList = await lists().findOne({ _id: lookup.listDoc._id });
+      hydrated = await emitHydratedListUpdate(updatedList);
+    }
+
+    res.json(hydrated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to update item" });
+  }
+});
+
+app.delete("/api/lists/:id/items/:itemId", auth, async (req, res) => {
+  try {
+    const lookup = await findAccessibleListOrThrow(req.params.id, req.userId);
+    if (lookup.error) return res.status(lookup.error.status).json(lookup.error.body);
+
+    const itemId = String(req.params.itemId || "");
+    await lists().updateOne(
+      { _id: lookup.listDoc._id },
+      { $pull: { items: { itemId } } }
+    );
+
+    await removeOrphanedListItem(itemId);
+
+    const updatedList = await lists().findOne({ _id: lookup.listDoc._id });
+    const hydrated = await emitHydratedListUpdate(updatedList);
+    res.json(hydrated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to delete item" });
+  }
+});
+
+app.put("/api/lists/:id/items/reorder", auth, async (req, res) => {
+  try {
+    const lookup = await findAccessibleListOrThrow(req.params.id, req.userId);
+    if (lookup.error) return res.status(lookup.error.status).json(lookup.error.body);
+
+    const itemIds = Array.isArray(req.body.itemIds) ? req.body.itemIds.map((itemId) => String(itemId || "")).filter(Boolean) : [];
+    const existingRefs = Array.isArray(lookup.listDoc.items) ? lookup.listDoc.items : [];
+    const existingIds = existingRefs.map((item) => String(item?.itemId || "")).filter(Boolean);
+
+    if (itemIds.length !== existingIds.length || itemIds.some((itemId) => !existingIds.includes(itemId))) {
+      return res.status(400).json({ error: "Invalid itemIds" });
+    }
+
+    const refMap = new Map(existingRefs.map((item) => [String(item?.itemId || ""), item]));
+    const reorderedRefs = itemIds.map((itemId) => refMap.get(itemId)).filter(Boolean);
+    await lists().updateOne(
+      { _id: lookup.listDoc._id },
+      { $set: { items: reorderedRefs } }
+    );
+
+    const updatedList = await lists().findOne({ _id: lookup.listDoc._id });
+    const hydrated = await emitHydratedListUpdate(updatedList);
+    res.json(hydrated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to reorder items" });
+  }
+});
+
+app.post("/api/lists/:id/items/:itemId/transfer", auth, async (req, res) => {
+  try {
+    const sourceLookup = await findAccessibleListOrThrow(req.params.id, req.userId);
+    if (sourceLookup.error) return res.status(sourceLookup.error.status).json(sourceLookup.error.body);
+
+    const { targetListId, mode = "share" } = req.body;
+    const targetLookup = await findAccessibleListOrThrow(targetListId, req.userId);
+    if (targetLookup.error) return res.status(targetLookup.error.status).json(targetLookup.error.body);
+
+    const sourceItemId = String(req.params.itemId || "");
+    const sourceRef = (sourceLookup.listDoc.items || []).find((item) => String(item?.itemId || "") === sourceItemId);
+    if (!sourceRef) return res.status(404).json({ error: "Item not found" });
+
+    let targetItemId = sourceItemId;
+    if (mode === "copy") {
+      const clonedItem = await cloneListItem(sourceItemId, req.userId);
+      if (!clonedItem) return res.status(404).json({ error: "Item not found" });
+      targetItemId = clonedItem._id;
+    } else if (mode !== "share") {
+      return res.status(400).json({ error: "Invalid mode" });
+    }
+
+    const targetRefs = Array.isArray(targetLookup.listDoc.items) ? targetLookup.listDoc.items : [];
+    if (mode === "share" && targetRefs.some((item) => String(item?.itemId || "") === targetItemId)) {
+      const hydratedTarget = await hydrateListDoc(targetLookup.listDoc);
+      return res.json({ targetList: hydratedTarget });
+    }
+
+    await lists().updateOne(
+      { _id: targetLookup.listDoc._id },
+      { $push: { items: { $each: [{ itemId: targetItemId, done: sourceRef.done }], $position: 0 } } }
+    );
+
+    const updatedTarget = await lists().findOne({ _id: targetLookup.listDoc._id });
+    const hydratedTarget = await emitHydratedListUpdate(updatedTarget);
+    res.json({ targetList: hydratedTarget });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to transfer item" });
   }
 });
 
@@ -485,7 +896,7 @@ app.put("/api/lists/:id", auth, async (req, res) => {
     const setUpdate = {};
     const unsetUpdate = {};
     if (name !== undefined) setUpdate.name = name;
-    if (items !== undefined) setUpdate.items = items;
+    if (items !== undefined) setUpdate.items = await persistListItemsForList(existing, items, userId);
     if (sharedWith !== undefined) setUpdate.sharedWith = sharedWith;
     if (shareWithEmails !== undefined) setUpdate.shareWithEmails = shareWithEmails;
     if (isPublic !== undefined) {
@@ -534,57 +945,33 @@ app.put("/api/lists/:id", auth, async (req, res) => {
     if (Object.keys(unsetUpdate).length > 0) {
       mongoUpdate.$unset = unsetUpdate;
     }
-    await lists().updateOne(filter, mongoUpdate);
+    if (Object.keys(mongoUpdate).length > 0) {
+      await lists().updateOne(filter, mongoUpdate);
+    }
     const newDoc = await lists().findOne(filter);
-    const recipients = [newDoc.owner, ...(newDoc.sharedWith || [])];
-    recipients.forEach(u => io.to(u).emit("list:updated", newDoc));
-
-    if (newDoc.public && newDoc.publicId) {
-      io.to(`public-list:id:${newDoc.publicId}`).emit("public-list:updated", {
-        list: {
-          publicId: newDoc.publicId,
-          publicSlug: newDoc.publicSlug,
-          name: newDoc.name,
-          items: newDoc.items || [],
-        },
-      });
-    }
-    if (newDoc.public && newDoc.publicSlug) {
-      io.to(`public-list:slug:${newDoc.publicSlug}`).emit("public-list:updated", {
-        list: {
-          publicId: newDoc.publicId,
-          publicSlug: newDoc.publicSlug,
-          name: newDoc.name,
-          items: newDoc.items || [],
-        },
-      });
-    }
+    const hydrated = await emitHydratedListUpdate(newDoc);
 
     // if public id changed, notify old subscribers too
     if (previousWasPublic && previousPublicId && previousPublicId !== newDoc.publicId) {
       io.to(`public-list:id:${previousPublicId}`).emit("public-list:updated", {
-        list: {
+        list: publicListPayload(hydrated, {
           publicId: previousPublicId,
           publicSlug: previousPublicSlug,
-          name: newDoc.name,
-          items: newDoc.items || [],
-        },
+        }),
       });
     }
 
     // if public slug changed, notify old slug subscribers too
     if (previousWasPublic && previousPublicSlug && previousPublicSlug !== newDoc.publicSlug) {
       io.to(`public-list:slug:${previousPublicSlug}`).emit("public-list:updated", {
-        list: {
+        list: publicListPayload(hydrated, {
           publicId: previousPublicId,
           publicSlug: previousPublicSlug,
-          name: newDoc.name,
-          items: newDoc.items || [],
-        },
+        }),
       });
     }
 
-    res.json(newDoc);
+    res.json(hydrated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update list" });
@@ -605,6 +992,7 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
     if (existing.owner !== userId) return res.status(403).json({ error: "Forbidden" });
 
     if (permanent) {
+      const itemIdsToCheck = (existing.items || []).map((item) => String(item?.itemId || item?.id || "")).filter(Boolean);
       await lists().deleteOne(filter);
       const recipients = [existing.owner, ...(existing.sharedWith || [])];
       recipients.forEach(u => io.to(u).emit("list:deleted", { id }));
@@ -630,6 +1018,7 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
           },
         });
       }
+      await Promise.all(itemIdsToCheck.map((itemId) => removeOrphanedListItem(itemId)));
       return res.json({ ok: true, permanent: true, id });
     }
 
@@ -645,8 +1034,7 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
       },
     });
     const archivedDoc = await lists().findOne(filter);
-    const recipients = [archivedDoc.owner, ...(archivedDoc.sharedWith || [])];
-    recipients.forEach(u => io.to(u).emit("list:updated", archivedDoc));
+    await emitHydratedListUpdate(archivedDoc);
     if (existing.public && existing.publicId) {
       io.to(`public-list:id:${existing.publicId}`).emit("public-list:updated", {
         list: {
@@ -694,15 +1082,10 @@ app.get("/api/public/:publicKey", async (req, res) => {
       { $set: { publicViewCount: nextPublicViewCount, publicLastViewedAt: currentViewedAt } }
     );
 
-    const updatedDoc = {
-      ...doc,
-      publicViewCount: nextPublicViewCount,
-      publicLastViewedAt: currentViewedAt,
-    };
-    const recipients = [updatedDoc.owner, ...(updatedDoc.sharedWith || [])];
-    recipients.forEach((u) => io.to(u).emit("list:updated", updatedDoc));
+    const updatedDoc = await lists().findOne({ _id: doc._id });
+    const hydrated = await emitHydratedListUpdate(updatedDoc);
 
-    const { _id, owner, sharedWith, shareWithEmails, ...data } = updatedDoc;
+    const { _id, owner, sharedWith, shareWithEmails, ...data } = hydrated;
     res.json(data);
   } catch (err) {
     console.error(err);

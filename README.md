@@ -48,6 +48,11 @@ The journal now supports per-user auth; all `/api/entries` routes require a **Be
 | GET    | /api/lists             | Fetch all lists owned or shared        |
 | POST   | /api/lists             | Create a new checklist (name, items, optional sharing, public flag) |
 | PUT    | /api/lists/:id         | Update a list's name/items/sharing/public flag |
+| POST   | /api/lists/:id/items   | Create a first-class item inside a list |
+| PATCH  | /api/lists/:id/items/:itemId | Update a single item's text or completion state |
+| DELETE | /api/lists/:id/items/:itemId | Remove a single item from a list |
+| PUT    | /api/lists/:id/items/reorder | Reorder a list by item id |
+| POST   | /api/lists/:id/items/:itemId/transfer | Share an item into another list or copy it into a new item |
 | DELETE | /api/lists/:id         | Remove a list (owner only)             |
 | GET    | /api/public/:publicId  | Read-only access to a public list (no auth) |
 
@@ -106,6 +111,7 @@ npm install && npm run dev
 Users can create any number of checklists (e.g. groceries, packing, goals) via the “Lists” feature on the home screen. Each list has:
 
 - A name and arbitrary items.
+- First-class items with stable ids, so an item can be shared into another list or copied as a new item.
 - Real‑time updates: when one user adds/removes items, all collaborators see the change instantly.
 - Optional sharing: owners can invite others by supplying their email addresses; those users receive read/write access and will see the list in their sidebar.
 - **Public flag**: owners may toggle a list public. Public lists get a unique random URL (`/lists/public/<id>`) and are readable by anyone (no authentication required); only the owner can make a list public or private.

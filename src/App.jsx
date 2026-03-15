@@ -507,7 +507,7 @@ export default function App() {
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", paddingBottom: "40px" }}>{publicList.name}</h1>
             <ul style={{ listStyle: "none", padding: 0 }}>
               {visiblePublicItems.map((it, idx) => (
-                <li key={idx} style={{ marginBottom: "6px" }}>
+                <li key={it.id || it.itemId || idx} style={{ marginBottom: "6px" }}>
                   <span style={{ color: it.done ? "var(--muted)" : "var(--text)" }}>{it.text}</span>
                 </li>
               ))}
