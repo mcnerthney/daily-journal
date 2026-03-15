@@ -285,6 +285,10 @@ export default function App() {
       return "Today";
     }
 
+    if (activeDateOnly < todayDate && dayDiff === 1) {
+      return "Yesterday";
+    }
+
     if (dayDiff <= 7) {
       return active.toLocaleDateString(undefined, { weekday: "long" });
     }
