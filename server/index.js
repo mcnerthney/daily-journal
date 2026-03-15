@@ -461,6 +461,11 @@ async function removeOrphanedListItem(itemId) {
 
   const usage = await lists().countDocuments({ "items.itemId": itemId });
   if (usage === 0) {
+    // Explicitly clear image payloads before deleting the item document.
+    await listItems().updateOne(
+      { _id: itemId },
+      { $set: { images: [] } }
+    );
     await listItems().deleteOne({ _id: itemId });
   }
 }
