@@ -573,6 +573,23 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         return normalized.startsWith("data:application/pdf") || normalized.includes(".pdf");
     };
 
+    const isMobile = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+
+    const openPdf = (src) => {
+        if (src.startsWith("data:")) {
+            const [header, b64] = src.split(",");
+            const mime = header.match(/:(.*?);/)[1];
+            const bytes = atob(b64);
+            const arr = new Uint8Array(bytes.length);
+            for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+            const blob = new Blob([arr], { type: mime });
+            const url = URL.createObjectURL(blob);
+            window.open(url, "_blank", "noopener,noreferrer");
+        } else {
+            window.open(src, "_blank", "noopener,noreferrer");
+        }
+    };
+
     const appendImageToNote = async (file) => {
         if (!file) return;
         const isImage = file.type.startsWith("image/");
@@ -721,7 +738,28 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                         key={`${src}-${idx}`}
                                         style={{ display: "grid", gap: "6px" }}
                                     >
-                                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "6px" }}>
+                                            {!isMobile() && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openPdf(src)}
+                                                    title="Open PDF"
+                                                    aria-label="Open PDF"
+                                                    style={{
+                                                        height: "22px",
+                                                        padding: "0 8px",
+                                                        borderRadius: "999px",
+                                                        border: "1px solid var(--border)",
+                                                        background: "var(--surface)",
+                                                        color: "var(--text)",
+                                                        cursor: "pointer",
+                                                        fontSize: "11px",
+                                                        lineHeight: 1,
+                                                    }}
+                                                >
+                                                    Open
+                                                </button>
+                                            )}
                                             <button
                                                 type="button"
                                                 onClick={() => removeAttachment(src)}
@@ -743,11 +781,35 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                                 x
                                             </button>
                                         </div>
-                                        <embed
-                                            src={src}
-                                            type="application/pdf"
-                                            style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)" }}
-                                        />
+                                        {isMobile() ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => openPdf(src)}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "10px",
+                                                    width: "100%",
+                                                    padding: "14px 16px",
+                                                    borderRadius: "8px",
+                                                    border: "1px solid var(--border)",
+                                                    background: "var(--surface)",
+                                                    color: "var(--text)",
+                                                    cursor: "pointer",
+                                                    fontSize: "14px",
+                                                    textAlign: "left",
+                                                }}
+                                            >
+                                                <span style={{ fontSize: "22px", lineHeight: 1 }}>📄</span>
+                                                <span>Open PDF</span>
+                                            </button>
+                                        ) : (
+                                            <embed
+                                                src={src}
+                                                type="application/pdf"
+                                                style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)" }}
+                                            />
+                                        )}
                                     </div>
                                 ) : (
                                     <img
