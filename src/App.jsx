@@ -313,12 +313,12 @@ export default function App() {
       return "Yesterday";
     }
 
-    if (dayDiff <= 7) {
+    if (dayDiff <= 6) {
       return active.toLocaleDateString(undefined, { weekday: "long" });
     }
 
     if (active.getFullYear() === now.getFullYear()) {
-      return active.toLocaleDateString(undefined, { weekday: "long", month: "long" });
+      return active.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
     }
 
     return active.toLocaleDateString(undefined, {
