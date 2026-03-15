@@ -692,7 +692,7 @@ export default function App() {
         ) : view === "today" ? (
           <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", fontSize: "13px", color: "var(--muted-strong)" }}>
-              <span>{activeDateLabel}</span>
+              <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--heading)" }}>{activeDateLabel}</span>
               {activeDate !== today && (
                 <button
                   onClick={() => setActiveDate(today)}
