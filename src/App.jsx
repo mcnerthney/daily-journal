@@ -490,6 +490,70 @@ export default function App() {
     updateEntry({ [field]: { ...(activeEntry[field] || {}), [key]: !(activeEntry[field] || {})[key] } });
 
   const sortedDates = Object.keys(entries).sort().reverse();
+  const daySwipeStartRef = useRef(null);
+
+  const shiftDateKey = useCallback((dateKey, deltaDays) => {
+    const base = new Date(`${dateKey}T12:00:00`);
+    if (Number.isNaN(base.getTime())) return dateKey;
+    base.setDate(base.getDate() + deltaDays);
+    return base.toLocaleDateString("en-CA");
+  }, []);
+
+  const goToPreviousDay = useCallback(() => {
+    setActiveDate((prev) => shiftDateKey(prev, -1));
+  }, [shiftDateKey]);
+
+  const goToNextDay = useCallback(() => {
+    setActiveDate((prev) => {
+      if (prev >= today) return prev;
+      const next = shiftDateKey(prev, 1);
+      return next > today ? today : next;
+    });
+  }, [shiftDateKey, today]);
+
+  const handleDaySwipeStart = useCallback((event) => {
+    const target = event.target;
+    if (target?.closest && target.closest("input, textarea, select, [contenteditable='true']")) {
+      daySwipeStartRef.current = null;
+      return;
+    }
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    daySwipeStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      at: Date.now(),
+    };
+  }, []);
+
+  const handleDaySwipeEnd = useCallback((event) => {
+    const start = daySwipeStartRef.current;
+    daySwipeStartRef.current = null;
+    if (!start) return;
+
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    const elapsed = Date.now() - start.at;
+
+    const minHorizontalDistance = 60;
+    const maxSwipeMs = 650;
+    const horizontalDominanceRatio = 1.4;
+
+    if (elapsed > maxSwipeMs) return;
+    if (Math.abs(dx) < minHorizontalDistance) return;
+    if (Math.abs(dx) < Math.abs(dy) * horizontalDominanceRatio) return;
+
+    if (dx > 0) {
+      goToPreviousDay();
+      return;
+    }
+
+    goToNextDay();
+  }, [goToNextDay, goToPreviousDay]);
+
   const score = (e) => {
     if (!e) return 0;
     const base =
@@ -783,7 +847,10 @@ export default function App() {
             <div>Loading your journal…</div>
           </div>
         ) : view === "today" ? (
-          <>
+          <div
+            onTouchStart={handleDaySwipeStart}
+            onTouchEnd={handleDaySwipeEnd}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", fontSize: "13px", color: "var(--muted-strong)" }}>
               <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--heading)" }}>{activeDateFieldLabel}</span>
               {activeDate !== today && (
@@ -922,7 +989,7 @@ export default function App() {
                 </div>
               ))}
             </div>
-          </>
+          </div>
         ) : view === "chart" ? (
           <>
             <BpChart entries={entries} />
