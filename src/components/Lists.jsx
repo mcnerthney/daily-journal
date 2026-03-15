@@ -520,13 +520,21 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         }
     };
 
+    const isPdfAttachment = (src) => {
+        const normalized = String(src || "").toLowerCase();
+        return normalized.startsWith("data:application/pdf") || normalized.includes(".pdf");
+    };
+
     const appendImageToNote = async (file) => {
-        if (!file || !file.type.startsWith("image/")) return;
+        if (!file) return;
+        const isImage = file.type.startsWith("image/");
+        const isPdf = file.type === "application/pdf";
+        if (!isImage && !isPdf) return;
 
         const asDataUrl = await new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ""));
-            reader.onerror = () => reject(new Error("Unable to read image"));
+            reader.onerror = () => reject(new Error("Unable to read file"));
             reader.readAsDataURL(file);
         });
 
@@ -640,12 +648,22 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                     <div style={{ display: "grid", gap: "8px" }}>
                         <div style={{ display: "grid", gap: "8px" }}>
                             {itemImagesDraft.map((src, idx) => (
-                                <img
-                                    key={`${src}-${idx}`}
-                                    src={src}
-                                    alt={`Note image ${idx + 1}`}
-                                    style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid var(--border)" }}
-                                />
+                                isPdfAttachment(src) ? (
+                                    <div key={`${src}-${idx}`} style={{ display: "grid", gap: "6px" }}>
+                                        <embed
+                                            src={src}
+                                            type="application/pdf"
+                                            style={{ width: "100%", minHeight: "220px", borderRadius: "8px", border: "1px solid var(--border)" }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <img
+                                        key={`${src}-${idx}`}
+                                        src={src}
+                                        alt={`Note image ${idx + 1}`}
+                                        style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid var(--border)" }}
+                                    />
+                                )
                             ))}
                         </div>
                     </div>
@@ -653,10 +671,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
 
                 <div style={{ display: "grid", gap: "8px" }}>
                     <label style={{ fontSize: "14px" }}>
-                        Add image
+                        Add image / PDF
                         <input
                             type="file"
-                            accept="image/*"
+                            accept="image/*,application/pdf"
                             onChange={handleNoteImagePick}
                             style={{ display: "block", marginTop: "6px", fontSize: "12px", color: "var(--muted)" }}
                         />
