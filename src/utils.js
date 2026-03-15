@@ -112,6 +112,10 @@ export async function updateListItem(listId, itemId, data, headers = {}) {
         body: JSON.stringify(data),
     });
     if (!res.ok) {
+        if (res.status === 413) {
+            const err = new Error("Image is too large. Please choose a smaller file.");
+            throw err;
+        }
         const data = await res.json().catch(() => ({}));
         const err = new Error(data.error || "update item failed");
         if (res.status === 401) err.code = 401;

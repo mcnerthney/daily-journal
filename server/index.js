@@ -28,7 +28,14 @@ const SMTP_PASS = process.env.SMTP_PASS || "";
 let mailTransporter = null;
 
 app.use(cors({ origin: "*" }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+
+app.use((err, _req, res, next) => {
+  if (err?.type === "entity.too.large") {
+    return res.status(413).json({ error: "Image is too large. Please choose a smaller file." });
+  }
+  return next(err);
+});
 
 function normalizeEmail(email = "") {
   return email.trim().toLowerCase();
@@ -238,17 +245,22 @@ function canAccessList(listDoc, userId) {
 
 function normalizeStoredItemRef(item) {
   if (typeof item === "string") {
-    return { itemId: "", text: item, note: "", done: false };
+    return { itemId: "", text: item, note: "", images: [], done: false };
   }
 
   if (!item || typeof item !== "object") {
-    return { itemId: "", text: "", note: "", done: false };
+    return { itemId: "", text: "", note: "", images: [], done: false };
   }
+
+  const images = Array.isArray(item.images)
+    ? item.images.map((img) => String(img || "").trim()).filter(Boolean)
+    : [];
 
   return {
     itemId: String(item.itemId || item.id || ""),
     text: typeof item.text === "string" ? item.text : "",
     note: typeof item.note === "string" ? item.note : "",
+    images,
     done: !!item.done,
     sourceItemId: item.sourceItemId || item.originItemId || null,
     createdAt: item.createdAt || null,
@@ -266,6 +278,9 @@ async function persistListItemsForList(listDoc, rawItems = [], actorUserId = lis
     const itemId = normalized.itemId || crypto.randomUUID();
     const text = String(normalized.text || "").trim();
     const note = String(normalized.note || "");
+    const images = Array.isArray(normalized.images)
+      ? normalized.images.map((img) => String(img || "").trim()).filter(Boolean)
+      : [];
 
     if (!itemId || !text) continue;
 
@@ -274,6 +289,7 @@ async function persistListItemsForList(listDoc, rawItems = [], actorUserId = lis
       itemId,
       text,
       note,
+      images,
       sourceItemId: String(normalized.sourceItemId || itemId),
       createdAt: normalized.createdAt ? new Date(normalized.createdAt) : now,
       createdBy: normalized.createdBy || actorUserId,
@@ -290,6 +306,7 @@ async function persistListItemsForList(listDoc, rawItems = [], actorUserId = lis
             $set: {
               text: item.text,
               note: item.note,
+              images: item.images,
               sourceItemId: item.sourceItemId,
               updatedAt: item.updatedAt,
             },
@@ -356,6 +373,7 @@ async function hydrateListDoc(listDoc) {
         itemId: ref.itemId,
         text: itemDoc?.text || "",
         note: itemDoc?.note || "",
+        images: Array.isArray(itemDoc?.images) ? itemDoc.images : [],
         done: ref.done,
         sourceItemId: itemDoc?.sourceItemId || ref.itemId,
         createdAt: itemDoc?.createdAt || null,
@@ -416,6 +434,7 @@ async function emitSharedItemUpdated(itemId) {
       itemId: normalizedItemId,
       text: itemDoc.text || "",
       note: itemDoc.note || "",
+      images: Array.isArray(itemDoc.images) ? itemDoc.images : [],
       sourceItemId: itemDoc.sourceItemId || normalizedItemId,
       createdAt: itemDoc.createdAt || null,
       updatedAt: itemDoc.updatedAt || null,
@@ -456,6 +475,7 @@ async function cloneListItem(sourceItemId, actorUserId) {
     _id: newItemId,
     text: sourceItem.text,
     note: sourceItem.note || "",
+    images: Array.isArray(sourceItem.images) ? sourceItem.images : [],
     sourceItemId: String(sourceItem.sourceItemId || sourceItemId),
     createdAt: now,
     updatedAt: now,
@@ -703,6 +723,7 @@ app.post("/api/lists/:id/items", auth, async (req, res) => {
       _id: itemId,
       text,
       note: "",
+      images: [],
       sourceItemId: itemId,
       createdAt: now,
       updatedAt: now,
@@ -733,7 +754,7 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
     const itemIndex = refs.findIndex((item) => String(item?.itemId || "") === itemId);
     if (itemIndex === -1) return res.status(404).json({ error: "Item not found" });
 
-    const { text, done, note } = req.body;
+    const { text, done, note, images, addImage } = req.body;
     const listUpdate = {};
     const itemUpdate = {};
 
@@ -756,6 +777,28 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
       itemUpdate.updatedAt = new Date();
     }
 
+    if (images !== undefined) {
+      if (!Array.isArray(images)) {
+        return res.status(400).json({ error: "images must be an array" });
+      }
+      if (images.length > 1) {
+        return res.status(400).json({ error: "Only one image can be sent per request" });
+      }
+      itemUpdate.images = images.map((img) => String(img || "").trim()).filter(Boolean);
+      itemUpdate.updatedAt = new Date();
+    }
+
+    if (addImage !== undefined) {
+      const imageValue = String(addImage || "").trim();
+      if (!imageValue) {
+        return res.status(400).json({ error: "Missing addImage" });
+      }
+      await listItems().updateOne(
+        { _id: itemId },
+        { $push: { images: imageValue }, $set: { updatedAt: new Date() } }
+      );
+    }
+
     if (Object.keys(itemUpdate).length > 0) {
       await listItems().updateOne({ _id: itemId }, { $set: itemUpdate });
     }
@@ -765,7 +808,7 @@ app.patch("/api/lists/:id/items/:itemId", auth, async (req, res) => {
     }
 
     let hydrated = null;
-    if (Object.keys(itemUpdate).length > 0) {
+    if (Object.keys(itemUpdate).length > 0 || addImage !== undefined) {
       const sharedUpdate = await emitSharedItemUpdated(itemId);
       hydrated = sharedUpdate.hydratedLists.find(
         (listDoc) => String(listDoc?._id || "") === String(lookup.listDoc._id)

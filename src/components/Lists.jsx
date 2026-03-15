@@ -19,6 +19,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const [titleDraft, setTitleDraft] = useState("");
     const [itemTextDraft, setItemTextDraft] = useState("");
     const [itemNoteDraft, setItemNoteDraft] = useState("");
+    const [itemImagesDraft, setItemImagesDraft] = useState([]);
     const [newNamePublic, setNewNamePublic] = useState(false);
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
@@ -502,7 +503,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     useEffect(() => {
         setItemTextDraft(selectedItem?.text || "");
         setItemNoteDraft(selectedItem?.note || "");
-    }, [selectedItemId, selectedItem?.text, selectedItem?.note]);
+        setItemImagesDraft(Array.isArray(selectedItem?.images) ? selectedItem.images : []);
+    }, [selectedItemId, selectedItem?.text, selectedItem?.note, selectedItem?.images]);
 
     const saveItemDetails = async (changes, errorMessage) => {
         const selectedListId = String(selectedId || "");
@@ -515,6 +517,32 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         } catch (e) {
             console.error(e);
             setError(formatActionError(errorMessage, e));
+        }
+    };
+
+    const appendImageToNote = async (file) => {
+        if (!file || !file.type.startsWith("image/")) return;
+
+        const asDataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = () => reject(new Error("Unable to read image"));
+            reader.readAsDataURL(file);
+        });
+
+        await saveItemDetails({ addImage: asDataUrl }, "Unable to add image to item");
+    };
+
+    const handleNoteImagePick = async (event) => {
+        const file = event.target?.files?.[0];
+        if (!file) return;
+        try {
+            await appendImageToNote(file);
+        } catch (e) {
+            console.error(e);
+            setError(formatActionError("Unable to add image", e));
+        } finally {
+            event.target.value = "";
         }
     };
 
@@ -598,9 +626,45 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                             saveItemDetails({ note: itemNoteDraft }, "Unable to update item note");
                         }}
                         rows={5}
-                        style={{ ...inputStyle, padding: "8px", resize: "vertical", minHeight: "110px", fontFamily: "inherit" }}
+                        style={{
+                            ...inputStyle,
+                            padding: "8px",
+                            resize: "vertical",
+                            minHeight: "110px",
+                            fontFamily: "inherit",
+                        }}
                     />
                 </label>
+
+                {itemImagesDraft.length > 0 && (
+                    <div style={{ display: "grid", gap: "8px" }}>
+                        <div style={{ display: "grid", gap: "8px" }}>
+                            {itemImagesDraft.map((src, idx) => (
+                                <img
+                                    key={`${src}-${idx}`}
+                                    src={src}
+                                    alt={`Note image ${idx + 1}`}
+                                    style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid var(--border)" }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div style={{ display: "grid", gap: "8px" }}>
+                    <label style={{ fontSize: "14px" }}>
+                        Add image
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleNoteImagePick}
+                            style={{ display: "block", marginTop: "6px", fontSize: "12px", color: "var(--muted)" }}
+                        />
+                    </label>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                        Images are stored separately from note text.
+                    </div>
+                </div>
 
                 <label style={{ fontSize: "14px" }}>
                     <input
