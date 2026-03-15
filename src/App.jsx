@@ -277,11 +277,23 @@ export default function App() {
     if (Number.isNaN(active.getTime())) return activeDateLabel;
 
     const now = new Date();
-    if (active.getMonth() === now.getMonth() && active.getFullYear() === now.getFullYear()) {
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const activeDateOnly = new Date(active.getFullYear(), active.getMonth(), active.getDate());
+    const dayDiff = Math.abs(Math.round((activeDateOnly - todayDate) / 86400000));
+
+    if (dayDiff <= 7) {
       return active.toLocaleDateString(undefined, { weekday: "long" });
     }
 
-    return activeDateLabel;
+    if (active.getFullYear() === now.getFullYear()) {
+      return active.toLocaleDateString(undefined, { weekday: "long", month: "long" });
+    }
+
+    return active.toLocaleDateString(undefined, {
+      weekday: "long",
+      month: "long",
+      year: "numeric",
+    });
   })();
   const activeDatePromptTarget =
     activeDateLabel === "Today"
