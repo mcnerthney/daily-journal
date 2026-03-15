@@ -324,6 +324,7 @@ export default function App() {
     return active.toLocaleDateString(undefined, {
       weekday: "long",
       month: "long",
+      day: "numeric" 
       year: "numeric",
     });
   })();
