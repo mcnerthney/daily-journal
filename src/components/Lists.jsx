@@ -661,9 +661,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                             style={{ display: "block", marginTop: "6px", fontSize: "12px", color: "var(--muted)" }}
                         />
                     </label>
-                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                        Images are stored separately from note text.
-                    </div>
                 </div>
 
                 <label style={{ fontSize: "14px" }}>
