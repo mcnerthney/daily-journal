@@ -346,8 +346,9 @@ async function migrateListItems(listDoc) {
   return { ...listDoc, items: refs };
 }
 
-async function hydrateListDoc(listDoc) {
+async function hydrateListDoc(listDoc, options = {}) {
   if (!listDoc) return null;
+  const includeImages = !!options.includeImages;
 
   const migrated = await migrateListItems(listDoc);
   const refs = Array.isArray(migrated.items)
@@ -368,12 +369,17 @@ async function hydrateListDoc(listDoc) {
     ...migrated,
     items: refs.map((ref) => {
       const itemDoc = itemMap.get(ref.itemId);
+      const images = Array.isArray(itemDoc?.images) ? itemDoc.images : [];
+      const note = itemDoc?.note || "";
+      const hasImages = images.length > 0;
       return {
         id: ref.itemId,
         itemId: ref.itemId,
         text: itemDoc?.text || "",
-        note: itemDoc?.note || "",
-        images: Array.isArray(itemDoc?.images) ? itemDoc.images : [],
+        note,
+        imageCount: images.length,
+        hasAttachments: !!String(note).trim() || hasImages,
+        ...(includeImages ? { images } : {}),
         done: ref.done,
         sourceItemId: itemDoc?.sourceItemId || ref.itemId,
         createdAt: itemDoc?.createdAt || null,
@@ -434,7 +440,8 @@ async function emitSharedItemUpdated(itemId) {
       itemId: normalizedItemId,
       text: itemDoc.text || "",
       note: itemDoc.note || "",
-      images: Array.isArray(itemDoc.images) ? itemDoc.images : [],
+      imageCount: Array.isArray(itemDoc.images) ? itemDoc.images.length : 0,
+      hasAttachments: !!String(itemDoc.note || "").trim() || (Array.isArray(itemDoc.images) && itemDoc.images.length > 0),
       sourceItemId: itemDoc.sourceItemId || normalizedItemId,
       createdAt: itemDoc.createdAt || null,
       updatedAt: itemDoc.updatedAt || null,
@@ -746,6 +753,41 @@ app.post("/api/lists/:id/items", auth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to add item" });
+  }
+});
+
+app.get("/api/lists/:id/items/:itemId", auth, async (req, res) => {
+  try {
+    const lookup = await findAccessibleListOrThrow(req.params.id, req.userId);
+    if (lookup.error) return res.status(lookup.error.status).json(lookup.error.body);
+
+    const itemId = String(req.params.itemId || "");
+    const refs = Array.isArray(lookup.listDoc.items) ? lookup.listDoc.items : [];
+    const ref = refs.find((item) => String(item?.itemId || "") === itemId);
+    if (!ref) return res.status(404).json({ error: "Item not found" });
+
+    const itemDoc = await listItems().findOne({ _id: itemId });
+    if (!itemDoc) return res.status(404).json({ error: "Item not found" });
+
+    const images = Array.isArray(itemDoc.images) ? itemDoc.images : [];
+    const note = itemDoc.note || "";
+    return res.json({
+      id: itemId,
+      itemId,
+      text: itemDoc.text || "",
+      note,
+      images,
+      imageCount: images.length,
+      hasAttachments: !!String(note).trim() || images.length > 0,
+      done: !!ref.done,
+      sourceItemId: itemDoc.sourceItemId || itemId,
+      createdAt: itemDoc.createdAt || null,
+      updatedAt: itemDoc.updatedAt || null,
+      createdBy: itemDoc.createdBy || null,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to load item" });
   }
 });
 

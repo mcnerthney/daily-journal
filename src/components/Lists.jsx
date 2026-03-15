@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
     fetchLists,
+    fetchListItem,
     createList,
     updateList,
     deleteList,
@@ -15,6 +16,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const [lists, setLists] = useState([]);
     const [selectedId, setSelectedId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
+    const [selectedItemDetails, setSelectedItemDetails] = useState(null);
     const [newName, setNewName] = useState("");
     const [titleDraft, setTitleDraft] = useState("");
     const [itemTextDraft, setItemTextDraft] = useState("");
@@ -116,6 +118,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         setTransferItemId(null);
         setTransferTargetId("");
         setTransferEnabled(false);
+        setSelectedItemDetails(null);
     }, [routeSelectedId, routeSelectedItemId]);
 
     // sync title draft when the selected list or its name changes
@@ -154,6 +157,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         } else {
             setSelectedId(normalizedId);
             setSelectedItemId(null);
+            setSelectedItemDetails(null);
         }
         setNewItem("");
         setShareInput("");
@@ -168,6 +172,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         } else {
             setSelectedId(null);
             setSelectedItemId(null);
+            setSelectedItemDetails(null);
         }
         setNewItem("");
         setShareInput("");
@@ -208,6 +213,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
             return;
         }
         setSelectedItemId(normalizedItemId);
+        setSelectedItemDetails(null);
     };
 
     const closeItemDetails = () => {
@@ -217,6 +223,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
             return;
         }
         setSelectedItemId(null);
+        setSelectedItemDetails(null);
     };
 
     const startItemLongPress = (itemId, event) => {
@@ -493,7 +500,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     };
 
     const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
-    const selectedItem = (selected.items || []).find((item) => getItemId(item) === String(selectedItemId || "")) || null;
+    const selectedItemSummary = (selected.items || []).find((item) => getItemId(item) === String(selectedItemId || "")) || null;
+    const selectedItem = selectedItemDetails && getItemId(selectedItemDetails) === String(selectedItemId || "")
+        ? selectedItemDetails
+        : selectedItemSummary;
     const activeLists = sortLists(lists.filter((l) => !l.archived));
     const archivedLists = sortLists(lists.filter((l) => l.archived));
     const transferTargets = sortLists(lists.filter((list) => getListId(list) !== String(selectedId || "")));
@@ -510,6 +520,33 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         onSelectedListTitle(selected.title || selected.name || "");
     }, [onSelectedListTitle, selectedId, selected.title, selected.name]);
 
+    const refreshSelectedItemDetails = async (listId, itemId) => {
+        const detail = await fetchListItem(listId, itemId, authHeaders);
+        setSelectedItemDetails(detail);
+        return detail;
+    };
+
+    useEffect(() => {
+        const selectedListId = String(selectedId || "");
+        const currentItemId = String(selectedItemId || "");
+        if (!selectedListId || !currentItemId) {
+            setSelectedItemDetails(null);
+            return;
+        }
+        let cancelled = false;
+        refreshSelectedItemDetails(selectedListId, currentItemId)
+            .catch((e) => {
+                if (cancelled) return;
+                console.error(e);
+                if (e.code !== 401) {
+                    setError(formatActionError("Unable to load item details", e));
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedId, selectedItemId, token]);
+
     useEffect(() => {
         setItemTextDraft(selectedItem?.text || "");
         setItemNoteDraft(selectedItem?.note || "");
@@ -523,6 +560,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         try {
             const updated = await updateListItem(selectedListId, currentItemId, changes, authHeaders);
             applyListUpdate(updated);
+            await refreshSelectedItemDetails(selectedListId, currentItemId);
             setError("");
         } catch (e) {
             console.error(e);
@@ -882,7 +920,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                     }}
                                     disabled={!!selected.archived}
                                 />
-                                {(String(it.note || "").trim() || (Array.isArray(it.images) && it.images.length > 0)) && (
+                                {(it.hasAttachments || String(it.note || "").trim() || Number(it.imageCount || 0) > 0) && (
                                     <button
                                         type="button"
                                         onClick={() => openItemDetails(getItemId(it))}

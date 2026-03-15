@@ -105,6 +105,20 @@ export async function createListItem(listId, data, headers = {}) {
     return res.json();
 }
 
+export async function fetchListItem(listId, itemId, headers = {}) {
+    const res = await fetch(`${API}/lists/${listId}/items/${itemId}`, {
+        method: "GET",
+        headers,
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "fetch item failed");
+        if (res.status === 401) err.code = 401;
+        throw err;
+    }
+    return res.json();
+}
+
 export async function updateListItem(listId, itemId, data, headers = {}) {
     const res = await fetch(`${API}/lists/${listId}/items/${itemId}`, {
         method: "PATCH",
