@@ -94,9 +94,9 @@ export default function BpChart({ entries }) {
                     y1={line120Y}
                     x2={width - padding}
                     y2={line120Y}
-                    stroke="#f6c28b"
+                    stroke="var(--accent-med)"
                     strokeWidth="1"
-                    strokeDasharray="8 3 2 3"
+                    strokeDasharray="2 2"
                     opacity="0.9"
                 />
                 <line
