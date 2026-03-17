@@ -1125,6 +1125,23 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                             </label>
                             {selected.public && (selected.publicSlug || selected.publicId) && (
                                 <div style={{ fontSize: "12px", display: "grid", gap: "2px" }}>
+                                    <label style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!selected.publicIncludeNotes}
+                                            onChange={async () => {
+                                                try {
+                                                    const updated = await updateList(selectedId, { publicIncludeNotes: !selected.publicIncludeNotes }, authHeaders);
+                                                    applyListUpdate(updated);
+                                                    setError("");
+                                                } catch (e) {
+                                                    console.error(e);
+                                                    setError(formatActionError("Unable to update public notes visibility", e));
+                                                }
+                                            }}
+                                        />{' '}
+                                        Include item notes on public page
+                                    </label>
                                     <div>
                                         Public views: {selected.publicViewCount || 0}
                                     </div>

@@ -393,6 +393,7 @@ async function hydrateListDoc(listDoc, options = {}) {
 }
 
 function publicListPayload(listDoc, overrides = {}) {
+  const includeNotes = !!listDoc.publicIncludeNotes;
   const items = Array.isArray(listDoc.items)
     ? listDoc.items
       .filter((item) => !item?.done)
@@ -400,6 +401,7 @@ function publicListPayload(listDoc, overrides = {}) {
         id: String(item?.id || item?.itemId || ""),
         itemId: String(item?.itemId || item?.id || ""),
         text: String(item?.text || ""),
+        ...(includeNotes ? { note: String(item?.note || "") } : {}),
         done: !!item?.done,
       }))
     : [];
@@ -408,6 +410,7 @@ function publicListPayload(listDoc, overrides = {}) {
     listId: String(listDoc._id || ""),
     publicId: listDoc.publicId,
     publicSlug: listDoc.publicSlug,
+    publicIncludeNotes: includeNotes,
     name: listDoc.name,
     items,
     ...overrides,
@@ -416,6 +419,7 @@ function publicListPayload(listDoc, overrides = {}) {
 
 async function buildPublicListResponse(listDoc) {
   const migrated = await migrateListItems(listDoc);
+  const includeNotes = !!migrated.publicIncludeNotes;
   const refs = Array.isArray(migrated.items)
     ? migrated.items
       .map((item) => ({ itemId: String(item?.itemId || ""), done: !!item?.done }))
@@ -427,6 +431,7 @@ async function buildPublicListResponse(listDoc) {
       listId: String(migrated._id || ""),
       publicId: migrated.publicId,
       publicSlug: migrated.publicSlug,
+      publicIncludeNotes: includeNotes,
       name: migrated.name,
       items: [],
     };
@@ -436,20 +441,22 @@ async function buildPublicListResponse(listDoc) {
   const itemDocs = await listItems()
     .find(
       { _id: { $in: itemIds } },
-      { projection: { _id: 1, text: 1 } }
+      { projection: { _id: 1, text: 1, note: 1 } }
     )
     .toArray();
-  const textById = new Map(itemDocs.map((item) => [String(item._id), String(item.text || "")]));
+  const itemById = new Map(itemDocs.map((item) => [String(item._id), item]));
 
   return {
     listId: String(migrated._id || ""),
     publicId: migrated.publicId,
     publicSlug: migrated.publicSlug,
+    publicIncludeNotes: includeNotes,
     name: migrated.name,
     items: refs.map((ref) => ({
+      ...(includeNotes ? { note: String(itemById.get(ref.itemId)?.note || "") } : {}),
       id: ref.itemId,
       itemId: ref.itemId,
-      text: textById.get(ref.itemId) || "",
+      text: String(itemById.get(ref.itemId)?.text || ""),
       done: ref.done,
     })),
   };
@@ -747,7 +754,13 @@ async function resolveEmails(emails) {
 
 app.post("/api/lists", auth, async (req, res) => {
   try {
-    const { name, items = [], shareWithEmails = [], public: isPublic = false } = req.body;
+    const {
+      name,
+      items = [],
+      shareWithEmails = [],
+      public: isPublic = false,
+      publicIncludeNotes = false,
+    } = req.body;
     if (!name) return res.status(400).json({ error: "Missing name" });
     const owner = req.userId;
     const sharedWith = await resolveEmails(shareWithEmails);
@@ -765,6 +778,7 @@ app.post("/api/lists", auth, async (req, res) => {
       shareWithEmails,
       publicViewCount: 0,
       publicLastViewedAt: null,
+      publicIncludeNotes: !!publicIncludeNotes,
     };
     doc.items = await persistListItemsForList(doc, items, owner);
     if (isPublic) {
@@ -1041,7 +1055,7 @@ app.post("/api/lists/:id/items/:itemId/transfer", auth, async (req, res) => {
 app.put("/api/lists/:id", auth, async (req, res) => {
   try {
     const id = req.params.id;
-    const { name, items, shareWithEmails, public: isPublic, archived, sortOrder } = req.body;
+    const { name, items, shareWithEmails, public: isPublic, publicIncludeNotes, archived, sortOrder } = req.body;
     const userId = req.userId;
     const filter = { _id: new ObjectId(id) };
     const existing = await lists().findOne(filter);
@@ -1057,6 +1071,9 @@ app.put("/api/lists/:id", auth, async (req, res) => {
       return res.status(403).json({ error: "Forbidden" });
     }
     if (isPublic !== undefined && existing.owner !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    if (publicIncludeNotes !== undefined && existing.owner !== userId) {
       return res.status(403).json({ error: "Forbidden" });
     }
     if (archived !== undefined && existing.owner !== userId) {
@@ -1084,6 +1101,9 @@ app.put("/api/lists/:id", auth, async (req, res) => {
         unsetUpdate.publicId = "";
         unsetUpdate.publicSlug = "";
       }
+    }
+    if (publicIncludeNotes !== undefined) {
+      setUpdate.publicIncludeNotes = !!publicIncludeNotes;
     }
     if (archived !== undefined) {
       setUpdate.archived = !!archived;
@@ -1248,6 +1268,7 @@ app.get("/api/public/:publicKey", async (req, res) => {
       publicSlug: 1,
       name: 1,
       items: 1,
+      publicIncludeNotes: 1,
       owner: 1,
       sharedWith: 1,
     };

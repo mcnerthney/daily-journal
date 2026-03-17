@@ -627,8 +627,13 @@ export default function App() {
             </div>
             <ul style={{ listStyle: "none", padding: 0 }}>
               {visiblePublicItems.map((it, idx) => (
-                <li key={it.id || it.itemId || idx} style={{ marginBottom: "6px" }}>
+                <li key={it.id || it.itemId || idx} style={{ marginBottom: "10px" }}>
                   <span style={{ color: it.done ? "var(--muted)" : "var(--text)" }}>{it.text}</span>
+                  {!!String(it.note || "").trim() && (
+                    <div style={{ marginTop: "3px", color: "var(--muted)", fontSize: "12px", fontStyle: "italic" }}>
+                      {it.note}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
