@@ -38,6 +38,13 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const [transferItemId, setTransferItemId] = useState(null);
     const [transferTargetId, setTransferTargetId] = useState("");
     const [transferEnabled, setTransferEnabled] = useState(false);
+    const selectedIdRef = useRef(null);
+    const selectedItemIdRef = useRef(null);
+    const selectedItemRef = useRef(null);
+    const itemTextDraftRef = useRef("");
+    const itemNoteDraftRef = useRef("");
+    const pendingItemSaveRef = useRef(null);
+    const flushPendingItemEditsRef = useRef(async () => { });
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -113,6 +120,18 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     // keep selection synced with hash route when App drives this screen
     useEffect(() => {
         if (routeSelectedId === undefined) return;
+        const nextSelectedId = routeSelectedId ? String(routeSelectedId) : null;
+        const nextSelectedItemId = routeSelectedItemId ? String(routeSelectedItemId) : null;
+        const currentSelectedId = selectedIdRef.current ? String(selectedIdRef.current) : null;
+        const currentSelectedItemId = selectedItemIdRef.current ? String(selectedItemIdRef.current) : null;
+        const leavingCurrentItem = Boolean(
+            currentSelectedId &&
+            currentSelectedItemId &&
+            (currentSelectedId !== nextSelectedId || currentSelectedItemId !== nextSelectedItemId)
+        );
+        if (leavingCurrentItem) {
+            void flushPendingItemEditsRef.current();
+        }
         setSelectedId(routeSelectedId ? String(routeSelectedId) : null);
         setSelectedItemId(routeSelectedItemId ? String(routeSelectedItemId) : null);
         setNewItem("");
@@ -169,7 +188,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         setTransferEnabled(false);
     };
 
-    const backToLists = () => {
+    const backToLists = async () => {
+        await flushPendingItemEditsRef.current();
         if (onCloseList) {
             onCloseList();
         } else {
@@ -219,7 +239,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         setSelectedItemDetails(null);
     };
 
-    const closeItemDetails = () => {
+    const closeItemDetails = async () => {
+        await flushPendingItemEditsRef.current();
         const selectedListId = String(selectedId || "");
         if (onCloseItemDetails && selectedListId) {
             onCloseItemDetails(selectedListId);
@@ -508,6 +529,15 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const selectedItem = selectedItemDetails && getItemId(selectedItemDetails) === String(selectedItemId || "")
         ? selectedItemDetails
         : selectedItemSummary;
+
+    useEffect(() => {
+        selectedIdRef.current = selectedId ? String(selectedId) : null;
+        selectedItemIdRef.current = selectedItemId ? String(selectedItemId) : null;
+        selectedItemRef.current = selectedItem || null;
+        itemTextDraftRef.current = itemTextDraft;
+        itemNoteDraftRef.current = itemNoteDraft;
+    }, [selectedId, selectedItemId, selectedItem, itemTextDraft, itemNoteDraft]);
+
     const activeLists = sortLists(lists.filter((l) => !l.archived));
     const archivedLists = sortLists(lists.filter((l) => l.archived));
     const transferTargets = sortLists(lists.filter((list) => getListId(list) !== String(selectedId || "")));
@@ -571,6 +601,52 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
             setError(formatActionError(errorMessage, e));
         }
     };
+
+    const flushPendingItemEdits = async () => {
+        if (pendingItemSaveRef.current) return pendingItemSaveRef.current;
+
+        const currentListId = selectedIdRef.current ? String(selectedIdRef.current) : "";
+        const currentItemId = selectedItemIdRef.current ? String(selectedItemIdRef.current) : "";
+        const currentItem = selectedItemRef.current;
+        if (!currentListId || !currentItemId || !currentItem) return;
+
+        const nextText = itemTextDraftRef.current.trim();
+        const currentText = String(currentItem.text || "");
+        const nextNote = String(itemNoteDraftRef.current || "");
+        const currentNote = String(currentItem.note || "");
+
+        const changes = {};
+        if (nextText && nextText !== currentText) {
+            changes.text = nextText;
+        }
+        if (nextNote !== currentNote) {
+            changes.note = nextNote;
+        }
+
+        if (!Object.keys(changes).length) return;
+
+        const request = (async () => {
+            try {
+                const updated = await updateListItem(currentListId, currentItemId, changes, authHeaders);
+                applyListUpdate(updated);
+                setError("");
+            } catch (e) {
+                console.error(e);
+                setError(formatActionError("Unable to save item changes", e));
+            }
+        })();
+
+        pendingItemSaveRef.current = request;
+        try {
+            await request;
+        } finally {
+            pendingItemSaveRef.current = null;
+        }
+    };
+
+    useEffect(() => {
+        flushPendingItemEditsRef.current = flushPendingItemEdits;
+    }, [flushPendingItemEdits]);
 
     const isPdfAttachment = (src) => {
         const normalized = String(src || "").toLowerCase();
