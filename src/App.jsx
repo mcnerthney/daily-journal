@@ -646,7 +646,7 @@ export default function App() {
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingBottom: "24px" }}>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "24px", margin: 0 }}>{publicList.name}</h1>
+              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "30px", margin: 0 }}>{publicList.name}</h1>
               {canEditPublicList && (
                 <button
                   type="button"
@@ -671,7 +671,7 @@ export default function App() {
                 <li key={it.id || it.itemId || idx} style={{ marginBottom: "10px" }}>
                   <span style={{ color: it.done ? "var(--muted)" : "var(--text)" }}>{it.text}</span>
                   {!!String(it.note || "").trim() && (
-                    <div className="public-list-item-note" style={{ marginTop: "3px", color: "var(--text)", fontSize: "14px", fontStyle: "italic" }}>
+                    <div className="public-list-item-note" style={{ marginTop: "3px", color: "var(--text)", fontSize: "14px" }}>
                       {it.note}
                     </div>
                   )}
