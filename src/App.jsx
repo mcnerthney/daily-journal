@@ -671,7 +671,7 @@ export default function App() {
                 <li key={it.id || it.itemId || idx} style={{ marginBottom: "10px" }}>
                   <span style={{ color: it.done ? "var(--muted)" : "var(--text)" }}>{it.text}</span>
                   {!!String(it.note || "").trim() && (
-                    <div className="public-list-item-note" style={{ marginTop: "3px", color: "var(--muted)", fontSize: "12px", fontStyle: "italic" }}>
+                    <div className="public-list-item-note" style={{ marginTop: "3px", color: "var(--text)", fontSize: "14px", fontStyle: "italic" }}>
                       {it.note}
                     </div>
                   )}
