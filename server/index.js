@@ -391,13 +391,63 @@ async function hydrateListDoc(listDoc, options = {}) {
 }
 
 function publicListPayload(listDoc, overrides = {}) {
+  const items = Array.isArray(listDoc.items)
+    ? listDoc.items.map((item) => ({
+      id: String(item?.id || item?.itemId || ""),
+      itemId: String(item?.itemId || item?.id || ""),
+      text: String(item?.text || ""),
+      done: !!item?.done,
+    }))
+    : [];
+
   return {
     listId: String(listDoc._id || ""),
     publicId: listDoc.publicId,
     publicSlug: listDoc.publicSlug,
     name: listDoc.name,
-    items: listDoc.items || [],
+    items,
     ...overrides,
+  };
+}
+
+async function buildPublicListResponse(listDoc) {
+  const migrated = await migrateListItems(listDoc);
+  const refs = Array.isArray(migrated.items)
+    ? migrated.items
+      .map((item) => ({ itemId: String(item?.itemId || ""), done: !!item?.done }))
+      .filter((item) => item.itemId)
+    : [];
+
+  if (refs.length === 0) {
+    return {
+      listId: String(migrated._id || ""),
+      publicId: migrated.publicId,
+      publicSlug: migrated.publicSlug,
+      name: migrated.name,
+      items: [],
+    };
+  }
+
+  const itemIds = [...new Set(refs.map((item) => item.itemId))];
+  const itemDocs = await listItems()
+    .find(
+      { _id: { $in: itemIds } },
+      { projection: { _id: 1, text: 1 } }
+    )
+    .toArray();
+  const textById = new Map(itemDocs.map((item) => [String(item._id), String(item.text || "")]));
+
+  return {
+    listId: String(migrated._id || ""),
+    publicId: migrated.publicId,
+    publicSlug: migrated.publicSlug,
+    name: migrated.name,
+    items: refs.map((ref) => ({
+      id: ref.itemId,
+      itemId: ref.itemId,
+      text: textById.get(ref.itemId) || "",
+      done: ref.done,
+    })),
   };
 }
 
@@ -1183,25 +1233,37 @@ app.delete("/api/lists/:id", auth, async (req, res) => {
 app.get("/api/public/:publicKey", async (req, res) => {
   try {
     const key = req.params.publicKey;
-    let doc = await lists().findOne({ publicSlug: key, public: true });
+    const projection = {
+      _id: 1,
+      publicId: 1,
+      publicSlug: 1,
+      name: 1,
+      items: 1,
+      owner: 1,
+      sharedWith: 1,
+    };
+    let doc = await lists().findOne({ publicSlug: key, public: true }, { projection });
     // backwards compatibility for old links that used UUID publicId
     if (!doc) {
-      doc = await lists().findOne({ publicId: key, public: true });
+      doc = await lists().findOne({ publicId: key, public: true }, { projection });
     }
     if (!doc) return res.status(404).json({ error: "Not found" });
 
-    const nextPublicViewCount = (doc.publicViewCount || 0) + 1;
-    const currentViewedAt = new Date();
-    await lists().updateOne(
-      { _id: doc._id },
-      { $set: { publicViewCount: nextPublicViewCount, publicLastViewedAt: currentViewedAt } }
-    );
+    const payload = await buildPublicListResponse(doc);
+    res.json(payload);
 
-    const updatedDoc = await lists().findOne({ _id: doc._id });
-    const hydrated = await emitHydratedListUpdate(updatedDoc);
-
-    const { _id, owner, sharedWith, shareWithEmails, ...data } = hydrated;
-    res.json({ ...data, listId: String(_id || "") });
+    // Do not block public reads on analytics writes.
+    lists()
+      .updateOne(
+        { _id: doc._id },
+        {
+          $inc: { publicViewCount: 1 },
+          $set: { publicLastViewedAt: new Date() },
+        }
+      )
+      .catch((updateErr) => {
+        console.error("Failed to update public list view stats", updateErr);
+      });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load public list" });

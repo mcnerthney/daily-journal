@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "bench:public": "node scripts/benchmark-public-api.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
