@@ -8,8 +8,7 @@ on:
 
 env:
   REGION: us-central1
-  API_SERVICE: journal-api
-  WEB_SERVICE: journal-web
+  APP_SERVICE: daily-journal
 
 jobs:
   # ── Job 1: Test ─────────────────────────────────────────────────────────────
@@ -53,52 +52,30 @@ jobs:
       - name: Configure Docker for GCR
         run: gcloud auth configure-docker --quiet
 
-      # Build images — set shell variables once, use them everywhere in this job
-      - name: Build & push images
+      # Build image — set shell variables once, use them everywhere in this job
+      - name: Build & push app image
         env:
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          API_URL: ${{ secrets.API_URL }}
+          DISABLE_WEBSOCKETS: ${{ secrets.DISABLE_WEBSOCKETS || 'true' }}
         run: |
           SHA=$(echo "${{ github.sha }}" | cut -c1-8)
           REGISTRY="gcr.io/${PROJECT_ID}"
 
-          API_IMAGE="${REGISTRY}/${{ env.API_SERVICE }}:${SHA}"
-          WEB_IMAGE="${REGISTRY}/${{ env.WEB_SERVICE }}:${SHA}"
+          APP_IMAGE="${REGISTRY}/${{ env.APP_SERVICE }}:${SHA}"
 
-          echo "API_IMAGE=${API_IMAGE}" >> $GITHUB_ENV
-          echo "WEB_IMAGE=${WEB_IMAGE}" >> $GITHUB_ENV
+          echo "APP_IMAGE=${APP_IMAGE}" >> $GITHUB_ENV
 
-          # Build & push API
-          docker build --platform linux/amd64 -t "${API_IMAGE}" ./server
-          docker push "${API_IMAGE}"
-
-          # Build & push Web
+          # Build & push merged app container
           docker build --platform linux/amd64 \
-            --build-arg API_URL="${API_URL}" \
-            -t "${WEB_IMAGE}" \
-            -f Dockerfile.cloudrun .
-          docker push "${WEB_IMAGE}"
+            --build-arg VITE_DISABLE_WEBSOCKETS="${DISABLE_WEBSOCKETS:-true}" \
+            -t "${APP_IMAGE}" \
+            .
+          docker push "${APP_IMAGE}"
 
-      - name: Deploy API to Cloud Run
+      - name: Deploy app to Cloud Run
         run: |
-          gcloud run deploy ${{ env.API_SERVICE }} \
-            --image "${{ env.API_IMAGE }}" \
-            --region ${{ env.REGION }} \
-            --platform managed \
-            --allow-unauthenticated \
-            --port 4000 \
-            --memory 256Mi \
-            --cpu 1 \
-            --min-instances 0 \
-            --max-instances 5 \
-            --set-env-vars "SMTP_HOST=${{ secrets.SMTP_HOST }},SMTP_PORT=${{ secrets.SMTP_PORT }},SMTP_SECURE=${{ secrets.SMTP_SECURE }},SMTP_USER=${{ secrets.SMTP_USER }},EMAIL_FROM=${{ secrets.EMAIL_FROM }}" \
-            --update-secrets "MONGO_URI=journal-mongo-uri:latest,SMTP_PASS=journal-smtp-pass:latest" \
-            --quiet
-
-      - name: Deploy Web to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.WEB_SERVICE }} \
-            --image "${{ env.WEB_IMAGE }}" \
+          gcloud run deploy ${{ env.APP_SERVICE }} \
+            --image "${{ env.APP_IMAGE }}" \
             --region ${{ env.REGION }} \
             --platform managed \
             --allow-unauthenticated \
@@ -107,21 +84,19 @@ jobs:
             --cpu 1 \
             --min-instances 0 \
             --max-instances 5 \
+            --set-env-vars "DISABLE_WEBSOCKETS=${{ secrets.DISABLE_WEBSOCKETS || 'true' }},SMTP_HOST=${{ secrets.SMTP_HOST }},SMTP_PORT=${{ secrets.SMTP_PORT }},SMTP_SECURE=${{ secrets.SMTP_SECURE }},SMTP_USER=${{ secrets.SMTP_USER }},EMAIL_FROM=${{ secrets.EMAIL_FROM }}" \
+            --update-secrets "MONGO_URI=journal-mongo-uri:latest,SMTP_PASS=journal-smtp-pass:latest" \
             --quiet
 
       - name: Print deployment URLs
         run: |
-          WEB_URL=$(gcloud run services describe ${{ env.WEB_SERVICE }} \
-            --region ${{ env.REGION }} --format "value(status.url)")
-          API_URL=$(gcloud run services describe ${{ env.API_SERVICE }} \
+          APP_URL=$(gcloud run services describe ${{ env.APP_SERVICE }} \
             --region ${{ env.REGION }} --format "value(status.url)")
 
           echo "## 🚀 Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "| Service | URL |"         >> $GITHUB_STEP_SUMMARY
           echo "|---------|-----|"         >> $GITHUB_STEP_SUMMARY
-          echo "| 🌐 Web  | ${WEB_URL} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔌 API  | ${API_URL} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 App  | ${APP_URL} |" >> $GITHUB_STEP_SUMMARY
 
           echo ""
-          echo "🌐 Web: ${WEB_URL}"
-          echo "🔌 API: ${API_URL}"
+          echo "🌐 App: ${APP_URL}"
