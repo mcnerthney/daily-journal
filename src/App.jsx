@@ -259,15 +259,19 @@ export default function App() {
   // when component mounts or hash changes, update state if it matches a feature
 
   useEffect(() => {
-    const handleHashChange = () => {
+    const syncRouteFromLocation = () => {
       const hash = window.location.hash.replace("#", "");
       applyRouteState(parseRoute(hash));
     };
 
-    window.addEventListener("hashchange", handleHashChange);
-    handleHashChange();
+    window.addEventListener("hashchange", syncRouteFromLocation);
+    window.addEventListener("popstate", syncRouteFromLocation);
+    syncRouteFromLocation();
 
-    return () => window.removeEventListener("hashchange", handleHashChange);
+    return () => {
+      window.removeEventListener("hashchange", syncRouteFromLocation);
+      window.removeEventListener("popstate", syncRouteFromLocation);
+    };
   }, [applyRouteState, parseRoute]);
 
   // keep localStorage in sync
