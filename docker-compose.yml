@@ -8,28 +8,21 @@ services:
       - mongo_data:/data/db
     # Not exposed externally — only reachable by the api service
 
-  api:
-    build: ./server
-    container_name: journal-api
-    restart: unless-stopped
-    environment:
-      MONGO_URI: mongodb://mongo:27017
-      PORT: 4000
-      DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
-    depends_on:
-      - mongo
-
-  web:
+  app:
     build:
       context: .
       args:
         VITE_DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
-    container_name: journal-web
+    container_name: journal-app
     restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      PORT: 3000
+      DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      - mongo
 
 volumes:
   mongo_data:

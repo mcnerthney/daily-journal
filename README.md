@@ -6,9 +6,10 @@ Data is stored in **MongoDB** — persists forever, across browsers and devices.
 ## Architecture
 
 ```
-Browser → nginx (port 3000)
+Browser → Node/Express (port 3000)
              ├── /         → React static files
-             └── /api/*    → Express API (port 4000)
+             ├── /api/*    → Express API
+             └── /socket.io/* → Socket.IO realtime
                                 └── MongoDB (port 27017, internal only)
 ```
 

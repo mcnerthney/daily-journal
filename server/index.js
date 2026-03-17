@@ -7,12 +7,18 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 const httpServer = createServer(app);
 const PORT = process.env.PORT || 4000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://mongo:27017";
 const DB_NAME = "daily_journal";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CLIENT_DIST_PATH = process.env.CLIENT_DIST_PATH || path.resolve(__dirname, "../dist");
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-change-me";
 const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:3000";
@@ -1349,12 +1355,29 @@ app.delete("/api/entries/:date", auth, async (req, res) => {
   }
 });
 
+const hasClientBuild = fs.existsSync(CLIENT_DIST_PATH);
+if (hasClientBuild) {
+  app.use(express.static(CLIENT_DIST_PATH));
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path.startsWith("/socket.io")) {
+      return next();
+    }
+    return res.sendFile(path.join(CLIENT_DIST_PATH, "index.html"));
+  });
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 connectDB()
   .then(() => {
     httpServer.listen(PORT, () => {
-      console.log(`🚀 API listening on port ${PORT}`);
+      console.log(`🚀 Server listening on port ${PORT}`);
       console.log(`🔄 Realtime transports: ${SOCKET_TRANSPORTS.join(", ")}`);
+      if (hasClientBuild) {
+        console.log(`🧩 Serving web client from ${CLIENT_DIST_PATH}`);
+      } else {
+        console.log("ℹ️ No client build found; API-only mode");
+      }
       if (DISABLE_WEBSOCKETS) {
         console.log("ℹ️ WebSocket transport disabled (polling only)");
       }
