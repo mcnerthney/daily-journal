@@ -395,10 +395,10 @@ function publicListPayload(listDoc, overrides = {}) {
     ? listDoc.items
       .filter((item) => !item?.done)
       .map((item) => ({
-      id: String(item?.id || item?.itemId || ""),
-      itemId: String(item?.itemId || item?.id || ""),
-      text: String(item?.text || ""),
-      done: !!item?.done,
+        id: String(item?.id || item?.itemId || ""),
+        itemId: String(item?.itemId || item?.id || ""),
+        text: String(item?.text || ""),
+        done: !!item?.done,
       }))
     : [];
 
