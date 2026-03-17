@@ -161,3 +161,7 @@ input {
 button {
   font-family: 'DM Sans', sans-serif;
 }
+
+.public-list-item-note {
+  white-space: pre-wrap;
+}
