@@ -24,6 +24,9 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_SECURE = process.env.SMTP_SECURE === "true";
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
+const disableWebsocketsEnv = String(process.env.DISABLE_WEBSOCKETS ?? "true").toLowerCase();
+const DISABLE_WEBSOCKETS = disableWebsocketsEnv !== "false";
+const SOCKET_TRANSPORTS = DISABLE_WEBSOCKETS ? ["polling"] : ["websocket", "polling"];
 
 let mailTransporter = null;
 
@@ -117,8 +120,7 @@ function auth(req, res, next) {
 // ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
-  // Allow the nginx proxy to upgrade connections
-  transports: ["websocket", "polling"],
+  transports: SOCKET_TRANSPORTS,
 });
 
 // track connected socket counts (globally and per-user)
@@ -570,7 +572,12 @@ async function findAccessibleListOrThrow(id, userId) {
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, clients: connectedClients });
+  res.json({
+    ok: true,
+    clients: connectedClients,
+    websocketsEnabled: !DISABLE_WEBSOCKETS,
+    realtimeTransports: SOCKET_TRANSPORTS,
+  });
 });
 
 // ── Authentication routes ────────────────────────────────────────────────────
@@ -1324,7 +1331,13 @@ app.delete("/api/entries/:date", auth, async (req, res) => {
 // ── Boot ──────────────────────────────────────────────────────────────────────
 connectDB()
   .then(() => {
-    httpServer.listen(PORT, () => console.log(`🚀 API + WS listening on port ${PORT}`));
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 API listening on port ${PORT}`);
+      console.log(`🔄 Realtime transports: ${SOCKET_TRANSPORTS.join(", ")}`);
+      if (DISABLE_WEBSOCKETS) {
+        console.log("ℹ️ WebSocket transport disabled (polling only)");
+      }
+    });
   })
   .catch((err) => {
     console.error("❌ Could not connect to MongoDB:", err.message);

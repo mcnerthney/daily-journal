@@ -18,6 +18,7 @@ set -euo pipefail
 PROJECT_ID=""           # e.g. "my-journal-123456"
 REGION="us-central1"    # Cloud Run region
 MONGO_URI=""            # MongoDB Atlas URI, e.g. "mongodb+srv://user:pass@cluster.mongodb.net/daily_journal"
+DISABLE_WEBSOCKETS="true" # Set to "false" to enable websocket transport
 # ─────────────────────────────────────────────────────────────────────────────
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -50,6 +51,7 @@ echo "============================================="
 echo "  Daily Journal → Google Cloud Run"
 echo "  Project : $PROJECT_ID"
 echo "  Region  : $REGION"
+echo "  No WS   : $DISABLE_WEBSOCKETS"
 echo "============================================="
 echo ""
 
@@ -114,6 +116,7 @@ gcloud run deploy "$API_SERVICE" \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 5 \
+  --set-env-vars "DISABLE_WEBSOCKETS=${DISABLE_WEBSOCKETS}" \
   --set-secrets "MONGO_URI=${SECRET_NAME}:latest" \
   --quiet
 
@@ -131,6 +134,7 @@ sed "s|http://api:4000|${API_URL}|g" nginx.conf > /tmp/nginx-cloudrun.conf
 
 docker build --platform linux/amd64 \
   --build-arg API_URL="$API_URL" \
+  --build-arg VITE_DISABLE_WEBSOCKETS="$DISABLE_WEBSOCKETS" \
   -t "$WEB_IMAGE" \
   -f Dockerfile.cloudrun \
   . 2>/dev/null || {
@@ -138,6 +142,7 @@ docker build --platform linux/amd64 \
     cp /tmp/nginx-cloudrun.conf nginx.conf.cloudrun
     docker build --platform linux/amd64 -t "$WEB_IMAGE" \
       --build-arg VITE_API_URL="$API_URL" \
+      --build-arg VITE_DISABLE_WEBSOCKETS="$DISABLE_WEBSOCKETS" \
       .
     rm nginx.conf.cloudrun
   }

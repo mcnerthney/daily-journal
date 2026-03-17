@@ -15,11 +15,15 @@ services:
     environment:
       MONGO_URI: mongodb://mongo:27017
       PORT: 4000
+      DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
     depends_on:
       - mongo
 
   web:
-    build: .
+    build:
+      context: .
+      args:
+        VITE_DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
     container_name: journal-web
     restart: unless-stopped
     ports:

@@ -106,6 +106,8 @@ async function doConfirmPasswordReset(token, password) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const defaultTitle = "Notebook";
+  const disableWebsockets = String(import.meta.env.VITE_DISABLE_WEBSOCKETS ?? "true").toLowerCase() !== "false";
+  const socketTransports = disableWebsockets ? ["polling"] : ["websocket", "polling"];
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
   const [view, setView] = useState("today");
@@ -373,7 +375,7 @@ export default function App() {
     if (!token && !publicListKey) return;
 
     const socket = io({
-      transports: ["websocket", "polling"],
+      transports: socketTransports,
       auth: token ? { token } : undefined,
     });
     socketRef.current = socket;
@@ -425,7 +427,7 @@ export default function App() {
     }
 
     return () => socket.disconnect();
-  }, [today, showToast, token, publicListId, publicListKey]);
+  }, [today, showToast, token, publicListId, publicListKey, socketTransports]);
 
   // ── Load all entries on mount ───────────────────────────────────────────────
   useEffect(() => {
