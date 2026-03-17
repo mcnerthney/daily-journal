@@ -32,7 +32,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const [trashOver, setTrashOver] = useState(false);
     const dragListId = useRef(null);
     const longPressTimer = useRef(null);
-    const attachmentLongPressTimer = useRef(null);
     const [dragOverListId, setDragOverListId] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [transferItemId, setTransferItemId] = useState(null);
@@ -222,12 +221,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         longPressTimer.current = null;
     };
 
-    const clearAttachmentLongPressTimer = () => {
-        if (!attachmentLongPressTimer.current) return;
-        clearTimeout(attachmentLongPressTimer.current);
-        attachmentLongPressTimer.current = null;
-    };
-
     const openItemDetails = (itemId) => {
         const selectedListId = String(selectedId || "");
         const normalizedItemId = String(itemId || "");
@@ -268,7 +261,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     useEffect(() => {
         return () => {
             clearLongPressTimer();
-            clearAttachmentLongPressTimer();
         };
     }, []);
 
@@ -712,17 +704,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         await saveItemDetails({ removeImage: normalizedSource }, "Unable to delete attachment");
     };
 
-    const startAttachmentLongPress = (source) => {
-        if (selected.archived) return;
-        const normalizedSource = String(source || "").trim();
-        if (!normalizedSource) return;
-        clearAttachmentLongPressTimer();
-        attachmentLongPressTimer.current = setTimeout(() => {
-            removeAttachment(normalizedSource);
-            attachmentLongPressTimer.current = null;
-        }, 550);
-    };
-
     // decode simple JWT to access userId for owner checks
     const decodeToken = (t) => {
         try {
@@ -911,19 +892,38 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                         )}
                                     </div>
                                 ) : (
-                                    <img
+                                    <div
                                         key={`${src}-${idx}`}
-                                        src={src}
-                                        alt={`Note image ${idx + 1}`}
-                                        title="Long press to delete attachment"
-                                        onMouseDown={() => startAttachmentLongPress(src)}
-                                        onMouseUp={clearAttachmentLongPressTimer}
-                                        onMouseLeave={clearAttachmentLongPressTimer}
-                                        onTouchStart={() => startAttachmentLongPress(src)}
-                                        onTouchEnd={clearAttachmentLongPressTimer}
-                                        onTouchCancel={clearAttachmentLongPressTimer}
-                                        style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid var(--border)" }}
-                                    />
+                                        style={{ display: "grid", gap: "6px" }}
+                                    >
+                                        <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "6px" }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeAttachment(src)}
+                                                title="Delete attachment"
+                                                aria-label="Delete attachment"
+                                                style={{
+                                                    width: "22px",
+                                                    height: "22px",
+                                                    borderRadius: "999px",
+                                                    border: "1px solid var(--border)",
+                                                    background: "var(--surface)",
+                                                    color: "var(--error)",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    lineHeight: 1,
+                                                    padding: 0,
+                                                }}
+                                            >
+                                                🗑
+                                            </button>
+                                        </div>
+                                        <img
+                                            src={src}
+                                            alt={`Note image ${idx + 1}`}
+                                            style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid var(--border)" }}
+                                        />
+                                    </div>
                                 )
                             ))}
                         </div>
