@@ -45,6 +45,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const itemNoteDraftRef = useRef("");
     const pendingItemSaveRef = useRef(null);
     const flushPendingItemEditsRef = useRef(async () => { });
+    const newItemInputRef = useRef(null);
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -293,6 +294,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
             applyListUpdate(updated);
             setNewItem("");
             setError("");
+            window.requestAnimationFrame(() => {
+                newItemInputRef.current?.focus();
+            });
         } catch (e) {
             console.error(e);
             setError(formatActionError("Unable to add item", e));
@@ -977,6 +981,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                 <h4 style={{ margin: 0 }}>Items</h4>
                 <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                     <input
+                        ref={newItemInputRef}
                         value={newItem}
                         onChange={e => setNewItem(e.target.value)}
                         onKeyDown={(e) => {
