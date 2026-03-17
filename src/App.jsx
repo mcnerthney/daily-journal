@@ -646,7 +646,7 @@ export default function App() {
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingBottom: "24px" }}>
-              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "30px", margin: 0 }}>{publicList.name}</h1>
+              <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "30px", fontWeight: 800, margin: 0 }}>{publicList.name}</h1>
               {canEditPublicList && (
                 <button
                   type="button"
