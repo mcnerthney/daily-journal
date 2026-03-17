@@ -170,6 +170,7 @@ export default function App() {
 
     return { appView: clean, selectedListId: null, selectedListItemId: null, resetJournalView: false };
   }, []);
+  const flushPendingSaveRef = useRef(() => {});
 
   const applyRouteState = useCallback((routeState) => {
     setAppView(routeState.appView);
@@ -186,6 +187,9 @@ export default function App() {
   const navigateToRoute = useCallback((route, options = {}) => {
     const { replace = false } = options;
     const routeState = parseRoute(route);
+    if (appView === "journal" && routeState.appView !== "journal") {
+      flushPendingSaveRef.current();
+    }
     applyRouteState(routeState);
 
     const base = `${window.location.pathname}${window.location.search}`;
@@ -204,7 +208,7 @@ export default function App() {
     }
 
     window.location.hash = route;
-  }, [applyRouteState, parseRoute]);
+  }, [appView, applyRouteState, parseRoute]);
 
   // derive feature metadata from the list
   const currentFeature = FEATURES.find(f => f.key === appView);
@@ -463,12 +467,34 @@ export default function App() {
 
   // general debounced updater used by most UI interactions
   const saveTimer = useRef(null);
+  const latestEntryRef = useRef(activeEntry);
+  const latestDateRef = useRef(activeDate);
+
+  useEffect(() => {
+    latestEntryRef.current = activeEntry;
+    latestDateRef.current = activeDate;
+  }, [activeDate, activeEntry]);
+
+  const flushPendingSave = useCallback(() => {
+    if (!saveTimer.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    persistEntry(latestDateRef.current, latestEntryRef.current);
+  }, [persistEntry]);
+
+  useEffect(() => {
+    flushPendingSaveRef.current = flushPendingSave;
+  }, [flushPendingSave]);
+
   const updateEntry = useCallback((updates) => {
     const merged = { ...activeEntry, ...updates };
+    latestEntryRef.current = merged;
+    latestDateRef.current = activeDate;
     setEntries(prev => ({ ...prev, [activeDate]: merged }));
     // debounce actual persistence so rapid changes don't spam the server
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
       persistEntry(activeDate, merged);
     }, 700);
   }, [activeDate, activeEntry, persistEntry]);
@@ -480,10 +506,21 @@ export default function App() {
 
   // clear pending timeout when component unmounts
   useEffect(() => {
+    const handlePageHide = () => flushPendingSave();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushPendingSave();
+    };
+
+    window.addEventListener("pagehide", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      flushPendingSave();
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, []);
+  }, [flushPendingSave]);
 
   const toggle = (field, val) => {
     const cur = activeEntry[field] || [];
