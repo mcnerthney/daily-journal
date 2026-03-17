@@ -3,14 +3,12 @@
 ## Architecture
 
 ```
-User → Cloud Run (journal-web)   ← nginx serves React + proxies /api/*
-           ↓
-       Cloud Run (journal-api)   ← Express on Node.js
-           ↓
-       MongoDB Atlas              ← Free M0 cluster (cloud-hosted)
+User → Cloud Run (daily-journal)  ← Node/Express serves React + /api + /socket.io
+         ↓
+      MongoDB Atlas               ← Free M0 cluster (cloud-hosted)
 ```
 
-Both Cloud Run services **scale to zero** when not in use, so you pay nothing while idle.
+The Cloud Run service **scales to zero** when not in use, so you pay nothing while idle.
 
 ---
 
@@ -18,8 +16,7 @@ Both Cloud Run services **scale to zero** when not in use, so you pay nothing wh
 
 | Service            | Free tier                          | ~Monthly if used daily |
 |--------------------|------------------------------------|------------------------|
-| Cloud Run (web)    | 2M requests/month free             | $0–2                   |
-| Cloud Run (api)    | 2M requests/month free             | $0–2                   |
+| Cloud Run (app)    | 2M requests/month free             | $0–4                   |
 | Artifact Registry  | 0.5 GB free                        | $0                     |
 | Secret Manager     | 6 secret versions free             | $0                     |
 | MongoDB Atlas M0   | Free forever (512 MB)              | $0                     |
@@ -90,11 +87,9 @@ chmod +x deploy-cloudrun.sh
 The script will:
 1. Enable required Google Cloud APIs
 2. Store your MongoDB URI securely in **Secret Manager**
-3. Build and push the API Docker image to **Artifact Registry**
-4. Deploy the API to **Cloud Run**
-5. Build and push the frontend Docker image
-6. Deploy the frontend to **Cloud Run**
-7. Print your live URLs
+3. Build and push the single app Docker image to **Container Registry**
+4. Deploy the app to **Cloud Run**
+5. Print your live URL
 
 Total time: ~5–8 minutes.
 
@@ -105,8 +100,7 @@ Total time: ~5–8 minutes.
 At the end of the script you'll see:
 
 ```
-🌐 App URL : https://journal-web-xxxx-uc.a.run.app
-🔌 API URL : https://journal-api-xxxx-uc.a.run.app
+🌐 App URL : https://daily-journal-xxxx-uc.a.run.app
 ```
 
 Open the App URL in your browser. Done!
@@ -117,8 +111,7 @@ Open the App URL in your browser. Done!
 
 ```bash
 # View live logs
-gcloud run services logs read journal-web --region us-central1
-gcloud run services logs read journal-api --region us-central1
+gcloud run services logs read daily-journal --region us-central1
 
 # Redeploy after code changes
 ./deploy-cloudrun.sh
@@ -127,16 +120,15 @@ gcloud run services logs read journal-api --region us-central1
 gcloud run services list
 
 # Tear everything down
-gcloud run services delete journal-web --region us-central1
-gcloud run services delete journal-api --region us-central1
+gcloud run services delete daily-journal --region us-central1
 ```
 
 ---
 
 ## Re-deploying After Code Changes
 
-Just re-run `./deploy-cloudrun.sh`. It will rebuild images, push them,
-and update both Cloud Run services with zero downtime.
+Just re-run `./deploy-cloudrun.sh`. It will rebuild the image, push it,
+and update the Cloud Run service with zero downtime.
 
 ---
 
@@ -158,7 +150,7 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \
   --role="roles/secretmanager.secretAccessor"
 ```
 
-**API returns 502**
+**App returns 502**
 → MongoDB Atlas Network Access — ensure `0.0.0.0/0` is whitelisted.
 
 **"Billing account not configured"**

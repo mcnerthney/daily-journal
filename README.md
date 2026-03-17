@@ -27,6 +27,25 @@ Then open **http://localhost:3000**
 
 That's it. MongoDB data is stored in a named Docker volume (`mongo_data`) so it survives restarts.
 
+## Cloud Run Deployment
+
+Cloud Run now uses a **single service** that runs the merged container:
+
+- Serves the React app
+- Handles `/api/*`
+- Handles `/socket.io/*`
+
+Use the deployment script:
+
+```bash
+chmod +x deploy-cloudrun.sh
+./deploy-cloudrun.sh
+```
+
+The script builds and pushes one image (`gcr.io/<project>/daily-journal:latest`) and deploys one Cloud Run service (`daily-journal`).
+
+For full setup details (Atlas, IAM, troubleshooting), see `DEPLOY_CLOUDRUN.md`.
+
 ## REST API (authentication required)
 
 The journal now supports per-user auth; all `/api/entries` routes require a **Bearer** token obtained via login.

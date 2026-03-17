@@ -41,10 +41,8 @@ fi
 [[ -z "$MONGO_URI"  ]] && error "MONGO_URI is required"
 
 REGISTRY="gcr.io/${PROJECT_ID}"
-API_IMAGE="${REGISTRY}/journal-api:latest"
-WEB_IMAGE="${REGISTRY}/journal-web:latest"
-API_SERVICE="journal-api"
-WEB_SERVICE="journal-web"
+APP_IMAGE="${REGISTRY}/daily-journal:latest"
+APP_SERVICE="daily-journal"
 
 echo ""
 echo "============================================="
@@ -94,67 +92,23 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --quiet
 success "Secret Manager access granted to $SA"
 
-# ── 5. Build & push API image ─────────────────────────────────────────────────
+# ── 5. Build & push app image ─────────────────────────────────────────────────
 info "Configuring Docker for GCR..."
 gcloud auth configure-docker --quiet
 
-info "Building API image..."
-docker build --platform linux/amd64 -t "$API_IMAGE" ./server
-info "Pushing API image to GCR..."
-docker push "$API_IMAGE"
-success "API image pushed: $API_IMAGE"
-
-# ── 6. Deploy API to Cloud Run ────────────────────────────────────────────────
-info "Deploying API service to Cloud Run..."
-gcloud run deploy "$API_SERVICE" \
-  --image "$API_IMAGE" \
-  --region "$REGION" \
-  --platform managed \
-  --allow-unauthenticated \
-  --port 4000 \
-  --memory 256Mi \
-  --cpu 1 \
-  --min-instances 0 \
-  --max-instances 5 \
-  --set-env-vars "DISABLE_WEBSOCKETS=${DISABLE_WEBSOCKETS}" \
-  --set-secrets "MONGO_URI=${SECRET_NAME}:latest" \
-  --quiet
-
-API_URL=$(gcloud run services describe "$API_SERVICE" \
-  --region "$REGION" \
-  --format "value(status.url)")
-success "API deployed at: $API_URL"
-
-# ── 7. Build frontend with API URL baked into nginx proxy ────────────────────
-info "Building frontend image (with API_URL=$API_URL)..."
-
-# Write a temporary nginx.conf that points to the real Cloud Run API URL
-ESCAPED_URL=$(echo "$API_URL" | sed 's|/|\\/|g')
-sed "s|http://api:4000|${API_URL}|g" nginx.conf > /tmp/nginx-cloudrun.conf
-
+info "Building single app image..."
 docker build --platform linux/amd64 \
-  --build-arg API_URL="$API_URL" \
   --build-arg VITE_DISABLE_WEBSOCKETS="$DISABLE_WEBSOCKETS" \
-  -t "$WEB_IMAGE" \
-  -f Dockerfile.cloudrun \
-  . 2>/dev/null || {
-    # Fallback: build with the generated nginx config
-    cp /tmp/nginx-cloudrun.conf nginx.conf.cloudrun
-    docker build --platform linux/amd64 -t "$WEB_IMAGE" \
-      --build-arg VITE_API_URL="$API_URL" \
-      --build-arg VITE_DISABLE_WEBSOCKETS="$DISABLE_WEBSOCKETS" \
-      .
-    rm nginx.conf.cloudrun
-  }
+  -t "$APP_IMAGE" \
+  .
+info "Pushing app image to GCR..."
+docker push "$APP_IMAGE"
+success "App image pushed: $APP_IMAGE"
 
-info "Pushing frontend image to GCR..."
-docker push "$WEB_IMAGE"
-success "Frontend image pushed: $WEB_IMAGE"
-
-# ── 8. Deploy frontend to Cloud Run ──────────────────────────────────────────
-info "Deploying frontend service to Cloud Run..."
-gcloud run deploy "$WEB_SERVICE" \
-  --image "$WEB_IMAGE" \
+# ── 6. Deploy app to Cloud Run ────────────────────────────────────────────────
+info "Deploying app service to Cloud Run..."
+gcloud run deploy "$APP_SERVICE" \
+  --image "$APP_IMAGE" \
   --region "$REGION" \
   --platform managed \
   --allow-unauthenticated \
@@ -163,31 +117,28 @@ gcloud run deploy "$WEB_SERVICE" \
   --cpu 1 \
   --min-instances 0 \
   --max-instances 5 \
-  --set-env-vars "API_URL=$API_URL" \
+  --set-env-vars "DISABLE_WEBSOCKETS=${DISABLE_WEBSOCKETS}" \
+  --set-secrets "MONGO_URI=${SECRET_NAME}:latest" \
   --quiet
 
-WEB_URL=$(gcloud run services describe "$WEB_SERVICE" \
+APP_URL=$(gcloud run services describe "$APP_SERVICE" \
   --region "$REGION" \
   --format "value(status.url)")
-
-success "Frontend deployed at: $WEB_URL"
+success "App deployed at: $APP_URL"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo "============================================="
 echo -e "  ${GREEN}Deployment complete!${NC}"
 echo "============================================="
-echo "  🌐 App URL : $WEB_URL"
-echo "  🔌 API URL : $API_URL"
+echo "  🌐 App URL : $APP_URL"
 echo "  📦 Project : $PROJECT_ID"
 echo "  🌍 Region  : $REGION"
 echo "============================================="
 echo ""
 echo "To view logs:"
-echo "  gcloud run services logs read $WEB_SERVICE --region $REGION"
-echo "  gcloud run services logs read $API_SERVICE --region $REGION"
+echo "  gcloud run services logs read $APP_SERVICE --region $REGION"
 echo ""
 echo "To tear down:"
-echo "  gcloud run services delete $WEB_SERVICE --region $REGION"
-echo "  gcloud run services delete $API_SERVICE --region $REGION"
+echo "  gcloud run services delete $APP_SERVICE --region $REGION"
 echo ""
