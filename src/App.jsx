@@ -170,7 +170,7 @@ export default function App() {
 
     return { appView: clean, selectedListId: null, selectedListItemId: null, resetJournalView: false };
   }, []);
-  const flushPendingSaveRef = useRef(() => {});
+  const flushPendingSaveRef = useRef(() => { });
 
   const applyRouteState = useCallback((routeState) => {
     setAppView(routeState.appView);
