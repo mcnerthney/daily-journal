@@ -392,12 +392,14 @@ async function hydrateListDoc(listDoc, options = {}) {
 
 function publicListPayload(listDoc, overrides = {}) {
   const items = Array.isArray(listDoc.items)
-    ? listDoc.items.map((item) => ({
+    ? listDoc.items
+      .filter((item) => !item?.done)
+      .map((item) => ({
       id: String(item?.id || item?.itemId || ""),
       itemId: String(item?.itemId || item?.id || ""),
       text: String(item?.text || ""),
       done: !!item?.done,
-    }))
+      }))
     : [];
 
   return {
@@ -415,7 +417,7 @@ async function buildPublicListResponse(listDoc) {
   const refs = Array.isArray(migrated.items)
     ? migrated.items
       .map((item) => ({ itemId: String(item?.itemId || ""), done: !!item?.done }))
-      .filter((item) => item.itemId)
+      .filter((item) => item.itemId && !item.done)
     : [];
 
   if (refs.length === 0) {
