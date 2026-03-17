@@ -198,6 +198,15 @@ async function connectDB() {
   // unique id for public access
   await db.collection("lists").createIndex({ publicId: 1 }, { unique: true, sparse: true });
   await db.collection("lists").createIndex({ publicSlug: 1 }, { unique: true, sparse: true });
+  // match /api/public/:publicKey predicate shape for faster lookups
+  await db.collection("lists").createIndex(
+    { public: 1, publicSlug: 1 },
+    { partialFilterExpression: { public: true, publicSlug: { $exists: true } } }
+  );
+  await db.collection("lists").createIndex(
+    { public: 1, publicId: 1 },
+    { partialFilterExpression: { public: true, publicId: { $exists: true } } }
+  );
 
   console.log(`✅ Connected to MongoDB at ${MONGO_URI}`);
 }
