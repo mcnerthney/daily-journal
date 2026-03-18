@@ -72,10 +72,10 @@ Open `deploy-cloudrun.sh` and fill in the two variables at the top:
 ```bash
 PROJECT_ID="your-project-id-here"
 MONGO_URI="mongodb+srv://journaluser:password@cluster0.xxxxx.mongodb.net/daily_journal"
-DISABLE_WEBSOCKETS="true"
+DISABLE_WEBSOCKETS="false"
 ```
 
-Polling-only realtime (no WebSocket transport) is the default. Set `DISABLE_WEBSOCKETS="false"` only if you want WebSocket transport enabled.
+WebSocket transport is enabled by default, with polling still available as a fallback. Set `DISABLE_WEBSOCKETS="true"` only if you want polling-only realtime.
 
 Then run:
 

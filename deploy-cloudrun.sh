@@ -18,7 +18,7 @@ set -euo pipefail
 PROJECT_ID=""           # e.g. "my-journal-123456"
 REGION="us-central1"    # Cloud Run region
 MONGO_URI=""            # MongoDB Atlas URI, e.g. "mongodb+srv://user:pass@cluster.mongodb.net/daily_journal"
-DISABLE_WEBSOCKETS="true" # Set to "false" to enable websocket transport
+DISABLE_WEBSOCKETS="false" # Set to "true" to force polling-only transport
 # ─────────────────────────────────────────────────────────────────────────────
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
