@@ -651,6 +651,11 @@ export default function App() {
   const maxScore = MEDICATIONS.length + FOODS.length + HYGIENE.length + CLEANING.length + WORKOUTS.length;
   const activeScore = score(activeEntry);
   const scorePct = Math.round((activeScore / maxScore) * 100);
+  const medicationOptions = [...new Set([
+    ...MEDICATIONS,
+    ...(activeEntry.customMeds || []),
+    ...(activeEntry.medications || []),
+  ])].filter(Boolean);
 
   const inputStyle = { background: "var(--input-bg)", border: "1px solid var(--input-border)", borderRadius: "10px", padding: "8px 12px", color: "var(--input-text)", fontSize: "13px", outline: "none" };
   const textareaStyle = { ...inputStyle, width: "100%", resize: "vertical", lineHeight: 1.6 };
@@ -975,7 +980,7 @@ export default function App() {
 
             <Section title="Medication" icon="💊" accent="var(--accent-med)">
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {[...MEDICATIONS, ...(activeEntry.customMeds || [])].map(med => (
+                {medicationOptions.map(med => (
                   <ToggleChip key={med} label={med} emoji="💊" checked={(activeEntry.medications || []).includes(med)} onChange={() => toggle("medications", med)} color="var(--accent-med)" />
                 ))}
               </div>

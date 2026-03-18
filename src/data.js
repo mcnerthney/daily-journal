@@ -6,7 +6,7 @@ export const MOODS = [
     { label: "Great", emoji: "😄", color: "#22c55e", value: 5 },
 ];
 
-export const MEDICATIONS = ["Morning meds", "Supplements", "PRN / As needed"];
+export const MEDICATIONS = ["DULoxetine 60 mg", "losartan 50 mg tablet", "traZODone 50 mg", "ibuprofen", "turmeric 2500x3"];
 export const FOODS = [
     { label: "Breakfast", emoji: "🌅" },
     { label: "Lunch", emoji: "☀️" },
