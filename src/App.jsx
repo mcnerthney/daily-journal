@@ -316,6 +316,7 @@ export default function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [resetToken, setResetToken] = useState("");
   const [toast, setToast] = useState({ message: "", visible: false });
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
   // keep a constant for the real "today" so we can label toasts appropriately
   const today = currentDate;
   const activeDateLabel = getRelativeDateLabel(activeDate, today);
@@ -379,6 +380,24 @@ export default function App() {
     setToast({ message, visible: true });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
   }, []);
+
+  // ── Offline / online detection ──────────────────────────────────────────────
+  useEffect(() => {
+    const handleOffline = () => {
+      setIsOffline(true);
+      showToast("📴 You're offline — showing cached content");
+    };
+    const handleOnline = () => {
+      setIsOffline(false);
+      showToast("✅ Back online");
+    };
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [showToast]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -905,6 +924,11 @@ export default function App() {
                   </>
                 )}
                 <SaveIndicator status={saveStatus} />
+                {isOffline && (
+                  <span style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "8px", background: "rgba(0,0,0,0.15)", color: "var(--header-text)", letterSpacing: "0.03em" }}>
+                    OFFLINE
+                  </span>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
