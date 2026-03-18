@@ -1269,12 +1269,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                     </div>
                                     {selected.publicSlug && (
                                         <div>
-                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
+                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`}  style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
                                         </div>
                                     )}
                                     {selected.publicId && (
                                         <div>
-                                            UUID URL: <a href={`/lists/public/${selected.publicId}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
+                                            UUID URL: <a href={`/lists/public/${selected.publicId}`} style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicId}</a>
                                         </div>
                                     )}
                                 </div>
