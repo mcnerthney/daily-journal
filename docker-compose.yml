@@ -12,13 +12,13 @@ services:
     build:
       context: .
       args:
-        VITE_DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
+        VITE_DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-false}
     container_name: journal-app
     restart: unless-stopped
     environment:
       MONGO_URI: mongodb://mongo:27017
       PORT: 3000
-      DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-true}
+      DISABLE_WEBSOCKETS: ${DISABLE_WEBSOCKETS:-false}
     ports:
       - "3000:3000"
     depends_on:

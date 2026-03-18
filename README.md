@@ -96,12 +96,12 @@ To enable real emails for password reset, set these server environment variables
 
 If SMTP variables are not set, the server logs email links to stdout as a development preview.
 
-## Deploy Without WebSockets
+## Disable WebSockets
 
-Realtime now defaults to polling-only mode (no WebSocket transport).
+Realtime now defaults to WebSocket transport with polling fallback.
 
-- Server runtime env: `DISABLE_WEBSOCKETS=true` (default)
-- Frontend build env: `VITE_DISABLE_WEBSOCKETS=true` (default)
+- Server runtime env: `DISABLE_WEBSOCKETS=false` (default)
+- Frontend build env: `VITE_DISABLE_WEBSOCKETS=false` (default)
 
 For Docker Compose:
 
@@ -111,7 +111,7 @@ DISABLE_WEBSOCKETS=true docker compose up --build
 
 This keeps live updates enabled using Socket.IO long-polling, while avoiding WebSocket transport entirely.
 
-To re-enable WebSockets, set both env vars to `false`.
+If you are not using Docker Compose, set both env vars to `true` to force polling-only mode.
 
 ## Development (no Docker)
 

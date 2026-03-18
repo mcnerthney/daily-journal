@@ -30,8 +30,8 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_SECURE = process.env.SMTP_SECURE === "true";
 const SMTP_USER = process.env.SMTP_USER || "";
 const SMTP_PASS = process.env.SMTP_PASS || "";
-const disableWebsocketsEnv = String(process.env.DISABLE_WEBSOCKETS ?? "true").toLowerCase();
-const DISABLE_WEBSOCKETS = disableWebsocketsEnv !== "false";
+const disableWebsocketsEnv = String(process.env.DISABLE_WEBSOCKETS ?? "false").toLowerCase();
+const DISABLE_WEBSOCKETS = disableWebsocketsEnv === "true";
 const SOCKET_TRANSPORTS = DISABLE_WEBSOCKETS ? ["polling"] : ["websocket", "polling"];
 
 let mailTransporter = null;

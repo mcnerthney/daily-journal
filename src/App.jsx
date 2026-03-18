@@ -106,7 +106,7 @@ async function doConfirmPasswordReset(token, password) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const defaultTitle = "Notebook";
-  const disableWebsockets = String(import.meta.env.VITE_DISABLE_WEBSOCKETS ?? "true").toLowerCase() !== "false";
+  const disableWebsockets = String(import.meta.env.VITE_DISABLE_WEBSOCKETS ?? "false").toLowerCase() === "true";
   const socketTransports = disableWebsockets ? ["polling"] : ["websocket", "polling"];
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");

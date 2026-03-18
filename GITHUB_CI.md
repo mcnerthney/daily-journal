@@ -90,6 +90,12 @@ Add these three secrets:
 | `SMTP_USER`     | SMTP login username / API key name             |
 | `EMAIL_FROM`    | Sender address (e.g. `no-reply@yourdomain.com`) |
 
+Optional:
+
+| Secret name            | Value |
+|------------------------|-------|
+| `DISABLE_WEBSOCKETS`   | Set to `true` only if you want polling-only realtime in production |
+
 The SMTP password is stored in **GCP Secret Manager** (not GitHub secrets).
 Create it once:
 ```bash
@@ -160,6 +166,8 @@ gcloud run deploy journal-api \
 **build** — authenticates to GCP, builds both Docker images with `--platform linux/amd64`, tags with the short git SHA (e.g. `:a1b2c3d4`) AND `:latest`, pushes to GCR
 
 **deploy** — deploys the new images to Cloud Run with zero downtime, prints URLs to the job summary
+
+GitHub deploys enable WebSocket transport by default, with polling still available as a fallback. Set the optional `DISABLE_WEBSOCKETS` secret to `true` only if you need polling-only mode.
 
 ---
 
