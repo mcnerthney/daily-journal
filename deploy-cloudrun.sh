@@ -114,12 +114,16 @@ gcloud run deploy "$APP_SERVICE" \
   --allow-unauthenticated \
   --port 3000 \
   --memory 256Mi \
-  --cpu 1 \
+  --cpu 0.5 \
+  --cpu-throttling \
+  --concurrency 80 \
   --min-instances 0 \
-  --max-instances 5 \
+  --max-instances 2 \
+  --timeout 30 \
   --set-env-vars "DISABLE_WEBSOCKETS=${DISABLE_WEBSOCKETS}" \
   --set-secrets "MONGO_URI=${SECRET_NAME}:latest" \
   --quiet
+
 
 APP_URL=$(gcloud run services describe "$APP_SERVICE" \
   --region "$REGION" \
