@@ -484,7 +484,7 @@ export default function App() {
         if (err.code === 401) setToken("");
       })
       .finally(() => setLoading(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // ── Persist to MongoDB ──────────────────────────────────────────────────────

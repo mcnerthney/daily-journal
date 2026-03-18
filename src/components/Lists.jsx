@@ -146,7 +146,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                 if (e.code === 401) return; // handled by parent
             })
             .finally(() => setListsLoaded(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
 
     // keep lists cache in sync with any local mutations (create, update, delete, reorder)
