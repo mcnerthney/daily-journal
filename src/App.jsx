@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { io } from "socket.io-client";
 
 import {
@@ -9,7 +9,26 @@ import {
   fetchAllEntries,
   saveEntry,
   fetchPublicList,
+  getUserIdFromToken,
 } from "./utils";
+
+function getCachedEntries(userId) {
+  try {
+    const raw = localStorage.getItem(`dj_entries_${userId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedEntries(userId, data) {
+  if (!userId) return;
+  try {
+    localStorage.setItem(`dj_entries_${userId}`, JSON.stringify(data));
+  } catch {
+    // quota exceeded – ignore
+  }
+}
 import {
   MOODS,
   MEDICATIONS,
@@ -348,6 +367,7 @@ export default function App() {
 
   // headers helper including auth token
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const userId = useMemo(() => getUserIdFromToken(token), [token]);
   const activeEntry = entries[activeDate] || {};
 
   // Track which saves originated here so we don't flash toast for own updates
@@ -403,7 +423,11 @@ export default function App() {
       if (isOwn) {
         myPendingSaves.current.delete(date);
       } else {
-        setEntries(prev => ({ ...prev, [date]: entry }));
+        setEntries(prev => {
+          const next = { ...prev, [date]: entry };
+          setCachedEntries(userId, next);
+          return next;
+        });
         const label = date === today ? "today's entry" : formatDate(date);
         showToast(`✨ ${label} updated by another viewer`);
       }
@@ -413,6 +437,7 @@ export default function App() {
       setEntries(prev => {
         const next = { ...prev };
         delete next[date];
+        setCachedEntries(userId, next);
         return next;
       });
       if (date !== today) showToast(`🗑 Entry for ${formatDate(date)} was deleted`);
@@ -440,14 +465,26 @@ export default function App() {
   // ── Load all entries on mount ───────────────────────────────────────────────
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
+    // Show cached data immediately so the UI is never blank
+    const cached = getCachedEntries(userId);
+    if (cached) {
+      setEntries(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    // Background fetch – update only when data has actually changed
     fetchAllEntries(authHeaders)
-      .then(setEntries)
+      .then((fresh) => {
+        setEntries(fresh);
+        setCachedEntries(userId, fresh);
+      })
       .catch((err) => {
         console.error(err);
         if (err.code === 401) setToken("");
       })
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // ── Persist to MongoDB ──────────────────────────────────────────────────────
@@ -494,7 +531,11 @@ export default function App() {
     const merged = { ...activeEntry, ...updates };
     latestEntryRef.current = merged;
     latestDateRef.current = activeDate;
-    setEntries(prev => ({ ...prev, [activeDate]: merged }));
+    setEntries(prev => {
+      const next = { ...prev, [activeDate]: merged };
+      setCachedEntries(userId, next);
+      return next;
+    });
     // debounce actual persistence so rapid changes don't spam the server
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {

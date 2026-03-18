@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
     fetchLists,
     fetchListItem,
@@ -10,10 +10,30 @@ import {
     deleteListItem,
     reorderListItems,
     transferListItem,
+    getUserIdFromToken,
 } from "../utils";
+
+function getCachedLists(userId) {
+    try {
+        const raw = localStorage.getItem(`dj_lists_${userId}`);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+function setCachedLists(userId, data) {
+    if (!userId) return;
+    try {
+        localStorage.setItem(`dj_lists_${userId}`, JSON.stringify(data));
+    } catch {
+        // quota exceeded – ignore
+    }
+}
 
 export default function Lists({ token, socket, selectedId: routeSelectedId, selectedItemId: routeSelectedItemId, onSelectList, onCloseList, onOpenItemDetails, onCloseItemDetails, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
+    const userId = useMemo(() => getUserIdFromToken(token), [token]);
     const [listsLoaded, setListsLoaded] = useState(false);
     const [selectedId, setSelectedId] = useState(null);
     const [selectedItemId, setSelectedItemId] = useState(null);
@@ -107,15 +127,33 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     // load lists
     useEffect(() => {
         if (!token) return;
-        setListsLoaded(false);
+        // Show cached data immediately so the UI is never blank
+        const cached = getCachedLists(userId);
+        if (cached) {
+            setLists(cached);
+            setListsLoaded(true);
+        } else {
+            setListsLoaded(false);
+        }
+        // Background fetch – update only when data has actually changed
         fetchLists(authHeaders, { includeArchived: true })
-            .then(setLists)
+            .then((fresh) => {
+                setLists(fresh);
+                setCachedLists(userId, fresh);
+            })
             .catch((e) => {
                 console.error(e);
                 if (e.code === 401) return; // handled by parent
             })
             .finally(() => setListsLoaded(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [token]);
+
+    // keep lists cache in sync with any local mutations (create, update, delete, reorder)
+    useEffect(() => {
+        if (!userId || !listsLoaded) return;
+        setCachedLists(userId, lists);
+    }, [userId, lists, listsLoaded]);
 
     // keep selection synced with hash route when App drives this screen
     useEffect(() => {
@@ -514,7 +552,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
             console.error(e);
             setError(formatActionError("Unable to reorder lists", e));
             fetchLists(authHeaders, { includeArchived: true })
-                .then(setLists)
+                .then((fresh) => { setLists(fresh); setCachedLists(userId, fresh); })
                 .catch(() => { });
         }
     };

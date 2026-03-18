@@ -1,5 +1,14 @@
 export const API = "/api";
 
+/** Decode the userId from a JWT without verifying the signature (client-side only). */
+export function getUserIdFromToken(token) {
+    try {
+        return JSON.parse(atob(token.split(".")[1])).userId || null;
+    } catch {
+        return null;
+    }
+}
+
 export const getTodayKey = () =>
     new Date().toLocaleDateString("en-CA");
 
