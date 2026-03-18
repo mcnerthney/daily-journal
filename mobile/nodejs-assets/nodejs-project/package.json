@@ -1,0 +1,22 @@
+{
+  "name": "daily-journal-on-device",
+  "version": "1.0.0",
+  "description": "On-device Express server powered by nodejs-mobile",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "lowdb": "^1.0.0"
+  },
+  "notes": [
+    "All deps must be pure-JS or pre-compiled for the target ABI.",
+    "lowdb@1.x is CommonJS-compatible and requires no native compilation.",
+    "Run 'npm install' inside this directory before building the Android app.",
+    "nodejs-mobile-react-native copies this entire folder into the APK."
+  ]
+}
