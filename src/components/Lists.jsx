@@ -31,6 +31,24 @@ function setCachedLists(userId, data) {
     }
 }
 
+function getCachedListItemDetails(userId) {
+    try {
+        const raw = localStorage.getItem(`dj_list_item_details_v1_${userId}`);
+        return raw ? JSON.parse(raw) : null;
+    } catch {
+        return null;
+    }
+}
+
+function setCachedListItemDetails(userId, data) {
+    if (!userId) return;
+    try {
+        localStorage.setItem(`dj_list_item_details_v1_${userId}`, JSON.stringify(data));
+    } catch {
+        // quota exceeded – ignore
+    }
+}
+
 export default function Lists({ token, socket, selectedId: routeSelectedId, selectedItemId: routeSelectedItemId, onSelectList, onCloseList, onOpenItemDetails, onCloseItemDetails, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
     const userId = useMemo(() => getUserIdFromToken(token), [token]);
@@ -65,6 +83,9 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const pendingItemSaveRef = useRef(null);
     const flushPendingItemEditsRef = useRef(async () => { });
     const newItemInputRef = useRef(null);
+    const itemDetailsCacheRef = useRef(new Map());
+    const itemDetailsInFlightRef = useRef(new Map());
+    const itemDetailsPersistTimerRef = useRef(null);
 
     const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
     const inputStyle = {
@@ -95,6 +116,52 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         return String(item.id ?? item.itemId ?? "");
     };
 
+    const getItemDetailCacheKey = (listId, itemId) => `${String(listId || "")}:${String(itemId || "")}`;
+
+    const getItemDetailVersion = (item) => {
+        if (!item) return "";
+        return JSON.stringify({
+            text: String(item.text || ""),
+            note: String(item.note || ""),
+            done: !!item.done,
+            imageCount: Number(item.imageCount || 0),
+            updatedAt: item.updatedAt || "",
+            hasAttachments: !!item.hasAttachments,
+        });
+    };
+
+    const schedulePersistItemDetailsCache = () => {
+        if (!userId) return;
+        if (itemDetailsPersistTimerRef.current) {
+            clearTimeout(itemDetailsPersistTimerRef.current);
+        }
+        itemDetailsPersistTimerRef.current = window.setTimeout(() => {
+            setCachedListItemDetails(userId, Object.fromEntries(itemDetailsCacheRef.current));
+            itemDetailsPersistTimerRef.current = null;
+        }, 150);
+    };
+
+    const setItemDetailCacheEntry = (listId, itemId, detail, sourceItem = detail) => {
+        const cacheKey = getItemDetailCacheKey(listId, itemId);
+        itemDetailsCacheRef.current.set(cacheKey, {
+            version: getItemDetailVersion(sourceItem),
+            detail,
+        });
+        schedulePersistItemDetailsCache();
+        return detail;
+    };
+
+    const getCachedItemDetail = (listId, itemId, sourceItem) => {
+        const cacheKey = getItemDetailCacheKey(listId, itemId);
+        const cached = itemDetailsCacheRef.current.get(cacheKey);
+        if (!cached) return null;
+        const expectedVersion = getItemDetailVersion(sourceItem);
+        if (!expectedVersion || cached.version === expectedVersion) {
+            return cached.detail;
+        }
+        return null;
+    };
+
     const sortLists = (items) => {
         const toOrder = (list) => {
             const value = Number(list?.sortOrder);
@@ -123,6 +190,27 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         const detail = err?.message && err.message !== fallback ? err.message : "";
         return detail ? `${fallback}: ${detail}` : fallback;
     };
+
+    useEffect(() => {
+        if (itemDetailsPersistTimerRef.current) {
+            clearTimeout(itemDetailsPersistTimerRef.current);
+            itemDetailsPersistTimerRef.current = null;
+        }
+        if (!userId) {
+            itemDetailsCacheRef.current = new Map();
+            itemDetailsInFlightRef.current = new Map();
+            return;
+        }
+        const cached = getCachedListItemDetails(userId);
+        itemDetailsCacheRef.current = new Map(Object.entries(cached || {}));
+        itemDetailsInFlightRef.current = new Map();
+    }, [userId]);
+
+    useEffect(() => () => {
+        if (itemDetailsPersistTimerRef.current) {
+            clearTimeout(itemDetailsPersistTimerRef.current);
+        }
+    }, []);
 
     // load lists
     useEffect(() => {
@@ -588,8 +676,32 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         onSelectedListTitle(selected.title || selected.name || "");
     }, [onSelectedListTitle, selectedId, selected.title, selected.name]);
 
-    const refreshSelectedItemDetails = async (listId, itemId) => {
-        const detail = await fetchListItem(listId, itemId, authHeaders);
+    const fetchItemDetails = async (listId, itemId, options = {}) => {
+        const normalizedListId = String(listId || "");
+        const normalizedItemId = String(itemId || "");
+        const sourceItem = options.sourceItem || null;
+        const force = !!options.force;
+        if (!normalizedListId || !normalizedItemId) return null;
+
+        const cacheKey = getItemDetailCacheKey(normalizedListId, normalizedItemId);
+        const cached = force ? null : getCachedItemDetail(normalizedListId, normalizedItemId, sourceItem);
+        if (cached) return cached;
+
+        const existingRequest = itemDetailsInFlightRef.current.get(cacheKey);
+        if (existingRequest) return existingRequest;
+
+        const request = fetchListItem(normalizedListId, normalizedItemId, authHeaders)
+            .then((detail) => setItemDetailCacheEntry(normalizedListId, normalizedItemId, detail, sourceItem || detail))
+            .finally(() => {
+                itemDetailsInFlightRef.current.delete(cacheKey);
+            });
+
+        itemDetailsInFlightRef.current.set(cacheKey, request);
+        return request;
+    };
+
+    const refreshSelectedItemDetails = async (listId, itemId, sourceItem) => {
+        const detail = await fetchItemDetails(listId, itemId, { force: true, sourceItem });
         setSelectedItemDetails(detail);
         return detail;
     };
@@ -601,8 +713,16 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
             setSelectedItemDetails(null);
             return;
         }
+        const sourceList = lists.find((list) => getListId(list) === selectedListId);
+        const sourceItem = (sourceList?.items || []).find((item) => getItemId(item) === currentItemId) || null;
+        const cachedDetail = getCachedItemDetail(selectedListId, currentItemId, sourceItem);
+        setSelectedItemDetails(cachedDetail);
         let cancelled = false;
-        refreshSelectedItemDetails(selectedListId, currentItemId)
+        fetchItemDetails(selectedListId, currentItemId, { sourceItem })
+            .then((detail) => {
+                if (cancelled) return;
+                setSelectedItemDetails(detail);
+            })
             .catch((e) => {
                 if (cancelled) return;
                 console.error(e);
@@ -613,7 +733,50 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         return () => {
             cancelled = true;
         };
-    }, [selectedId, selectedItemId, token]);
+    }, [selectedId, selectedItemId, token, lists]);
+
+    useEffect(() => {
+        if (!token || !listsLoaded) return;
+
+        const pendingItems = [];
+        for (const list of lists) {
+            const listId = getListId(list);
+            if (!listId) continue;
+            for (const item of list.items || []) {
+                const itemId = getItemId(item);
+                if (!itemId) continue;
+                if (getCachedItemDetail(listId, itemId, item)) continue;
+                pendingItems.push({ listId, itemId, item });
+            }
+        }
+
+        if (pendingItems.length === 0) return;
+
+        let cancelled = false;
+        let nextIndex = 0;
+        const workerCount = Math.min(4, pendingItems.length);
+
+        const runWorker = async () => {
+            while (!cancelled) {
+                const job = pendingItems[nextIndex];
+                nextIndex += 1;
+                if (!job) return;
+                try {
+                    await fetchItemDetails(job.listId, job.itemId, { sourceItem: job.item });
+                } catch (e) {
+                    if (e?.code !== 401) {
+                        console.error(e);
+                    }
+                }
+            }
+        };
+
+        void Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [lists, listsLoaded, token]);
 
     useEffect(() => {
         setItemTextDraft(selectedItem?.text || "");
@@ -628,7 +791,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         try {
             const updated = await updateListItem(selectedListId, currentItemId, changes, authHeaders);
             applyListUpdate(updated);
-            await refreshSelectedItemDetails(selectedListId, currentItemId);
+            await refreshSelectedItemDetails(selectedListId, currentItemId, updated.items?.find((item) => getItemId(item) === currentItemId));
             setError("");
         } catch (e) {
             console.error(e);
