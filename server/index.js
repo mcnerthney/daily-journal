@@ -232,6 +232,23 @@ function slugifyListName(name = "") {
     .replace(/^-|-$/g, "") || "list";
 }
 
+function normalizePublicSortMode(value) {
+  return value === "alphabetical" ? "alphabetical" : "order";
+}
+
+function sortPublicItemsByMode(items, sortMode) {
+  const mode = normalizePublicSortMode(sortMode);
+  if (mode !== "alphabetical") return items;
+  return [...items].sort((a, b) => {
+    const byText = String(a?.text || "").localeCompare(String(b?.text || ""), undefined, {
+      sensitivity: "base",
+      numeric: true,
+    });
+    if (byText !== 0) return byText;
+    return String(a?.id || a?.itemId || "").localeCompare(String(b?.id || b?.itemId || ""));
+  });
+}
+
 async function generateUniquePublicSlug(name, excludeId = null) {
   const base = slugifyListName(name);
   let candidate = base;
@@ -411,6 +428,7 @@ function publicListPayload(listDoc, overrides = {}) {
         done: !!item?.done,
       }))
     : [];
+  const sortedItems = sortPublicItemsByMode(items, listDoc.publicSortMode);
 
   return {
     listId: String(listDoc._id || ""),
@@ -418,7 +436,7 @@ function publicListPayload(listDoc, overrides = {}) {
     publicSlug: listDoc.publicSlug,
     publicIncludeNotes: includeNotes,
     name: listDoc.name,
-    items,
+    items: sortedItems,
     ...overrides,
   };
 }
@@ -452,19 +470,22 @@ async function buildPublicListResponse(listDoc) {
     .toArray();
   const itemById = new Map(itemDocs.map((item) => [String(item._id), item]));
 
+  const mappedItems = refs.map((ref) => ({
+    ...(includeNotes ? { note: String(itemById.get(ref.itemId)?.note || "") } : {}),
+    id: ref.itemId,
+    itemId: ref.itemId,
+    text: String(itemById.get(ref.itemId)?.text || ""),
+    done: ref.done,
+  }));
+  const sortedItems = sortPublicItemsByMode(mappedItems, migrated.publicSortMode);
+
   return {
     listId: String(migrated._id || ""),
     publicId: migrated.publicId,
     publicSlug: migrated.publicSlug,
     publicIncludeNotes: includeNotes,
     name: migrated.name,
-    items: refs.map((ref) => ({
-      ...(includeNotes ? { note: String(itemById.get(ref.itemId)?.note || "") } : {}),
-      id: ref.itemId,
-      itemId: ref.itemId,
-      text: String(itemById.get(ref.itemId)?.text || ""),
-      done: ref.done,
-    })),
+    items: sortedItems,
   };
 }
 
@@ -780,6 +801,7 @@ app.post("/api/lists", auth, async (req, res) => {
       owner,
       items: [],
       sortOrder: minSortOrder - 1,
+      publicSortMode: "order",
       sharedWith,
       shareWithEmails,
       publicViewCount: 0,
@@ -1275,6 +1297,7 @@ app.get("/api/public/:publicKey", async (req, res) => {
       name: 1,
       items: 1,
       publicIncludeNotes: 1,
+      publicSortMode: 1,
       owner: 1,
       sharedWith: 1,
     };
@@ -1303,6 +1326,59 @@ app.get("/api/public/:publicKey", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to load public list" });
+  }
+});
+
+app.patch("/api/public/:publicKey/sort", async (req, res) => {
+  try {
+    const key = String(req.params.publicKey || "");
+    const sortMode = normalizePublicSortMode(req.body?.sortMode);
+    if (!key) return res.status(400).json({ error: "Missing public key" });
+
+    let doc = await lists().findOne({ publicSlug: key, public: true }, { projection: { _id: 1, publicId: 1, publicSlug: 1 } });
+    if (!doc) {
+      doc = await lists().findOne({ publicId: key, public: true }, { projection: { _id: 1, publicId: 1, publicSlug: 1 } });
+    }
+    if (!doc) return res.status(404).json({ error: "Not found" });
+
+    await lists().updateOne(
+      { _id: doc._id },
+      { $set: { publicSortMode: sortMode } }
+    );
+
+    const updated = await lists().findOne(
+      { _id: doc._id },
+      {
+        projection: {
+          _id: 1,
+          publicId: 1,
+          publicSlug: 1,
+          name: 1,
+          items: 1,
+          publicIncludeNotes: 1,
+          publicSortMode: 1,
+          owner: 1,
+          sharedWith: 1,
+        },
+      }
+    );
+    const payload = await buildPublicListResponse(updated);
+
+    if (updated.publicId) {
+      io.to(`public-list:id:${updated.publicId}`).emit("public-list:updated", {
+        list: payload,
+      });
+    }
+    if (updated.publicSlug) {
+      io.to(`public-list:slug:${updated.publicSlug}`).emit("public-list:updated", {
+        list: payload,
+      });
+    }
+
+    return res.json(payload);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to update public list sort" });
   }
 });
 

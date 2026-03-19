@@ -217,3 +217,18 @@ export async function fetchPublicList(publicKey) {
     }
     return res.json();
 }
+
+export async function updatePublicListSort(publicKey, sortMode) {
+    const res = await fetch(`${API}/public/${encodeURIComponent(publicKey)}/sort`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sortMode }),
+    });
+    if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const err = new Error(data.error || "update failed");
+        if (res.status === 404) err.code = 404;
+        throw err;
+    }
+    return res.json();
+}

@@ -9,6 +9,7 @@ import {
   fetchAllEntries,
   saveEntry,
   fetchPublicList,
+  updatePublicListSort,
   getUserIdFromToken,
 } from "./utils";
 
@@ -29,6 +30,7 @@ function setCachedEntries(userId, data) {
     // quota exceeded – ignore
   }
 }
+
 import {
   MOODS,
   MEDICATIONS,
@@ -139,6 +141,7 @@ export default function App() {
   const [publicListId, setPublicListId] = useState(null);
   const [publicListInternalId, setPublicListInternalId] = useState(null);
   const [publicList, setPublicList] = useState(null);
+  const [publicListSortMode, setPublicListSortMode] = useState("order");
 
   const isUuid = useCallback((v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v), []);
 
@@ -706,30 +709,63 @@ export default function App() {
       const nextSearch = window.location.search || "";
       window.location.assign(`/${nextSearch}#lists/edit/${encodedId}`);
     };
+    const handlePublicSortChange = async (event) => {
+      const nextMode = event.target.value === "alphabetical" ? "alphabetical" : "order";
+      const previousMode = publicListSortMode;
+      setPublicListSortMode(nextMode);
+      try {
+        const updated = await updatePublicListSort(publicListKey, nextMode);
+        setPublicList(updated);
+      } catch (err) {
+        console.error(err);
+        setPublicListSortMode(previousMode);
+        showToast("Could not save sort preference");
+      }
+    };
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: "40px" }}>
         {publicList ? (
           <div style={{ maxWidth: "500px", margin: "0 auto" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingBottom: "24px" }}>
               <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "30px", fontWeight: 800, margin: 0 }}>{publicList.name}</h1>
-              {canEditPublicList && (
-                <button
-                  type="button"
-                  onClick={openPublicListEditor}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <select
+                  aria-label="Sort public list items"
+                  value={publicListSortMode}
+                  onChange={handlePublicSortChange}
                   style={{
                     background: "var(--surface)",
                     border: "1px solid var(--border)",
                     borderRadius: "10px",
                     color: "var(--heading)",
                     cursor: "pointer",
-                    padding: "8px 14px",
+                    padding: "8px 10px",
                     fontSize: "13px",
                     fontWeight: 600,
                   }}
                 >
-                  Edit
-                </button>
-              )}
+                  <option value="order">Order</option>
+                  <option value="alphabetical">Alphabetical</option>
+                </select>
+                {canEditPublicList && (
+                  <button
+                    type="button"
+                    onClick={openPublicListEditor}
+                    style={{
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      color: "var(--heading)",
+                      cursor: "pointer",
+                      padding: "8px 14px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
             </div>
             <ul style={{ listStyle: "none", padding: 0 }}>
               {visiblePublicItems.map((it, idx) => (
