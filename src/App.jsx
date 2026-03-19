@@ -70,6 +70,18 @@ const JOURNAL_VIEW_LABELS = {
   chart: "Stats",
 };
 
+const APP_REALTIME_STORAGE_KEY = "dj_realtime_enabled";
+const PUBLIC_REALTIME_STORAGE_KEY = "dj_public_realtime_enabled";
+
+function getStoredRealtimeEnabled(storageKey, defaultValue) {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    return raw === null ? defaultValue : raw !== "false";
+  } catch {
+    return defaultValue;
+  }
+}
+
 // auth helper methods
 async function doLogin(email, password) {
   const res = await fetch(`${API}/login`, {
@@ -126,10 +138,12 @@ async function doConfirmPasswordReset(token, password) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const defaultTitle = "Notebook";
-  const disableWebsockets = String(import.meta.env.VITE_DISABLE_WEBSOCKETS ?? "false").toLowerCase() === "true";
-  const socketTransports = disableWebsockets ? ["polling"] : ["websocket", "polling"];
+  const preferPollingTransport = String(import.meta.env.VITE_DISABLE_WEBSOCKETS ?? "false").toLowerCase() === "true";
+  const socketTransports = preferPollingTransport ? ["polling"] : ["websocket", "polling"];
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+  const [appRealtimeEnabled, setAppRealtimeEnabled] = useState(() => getStoredRealtimeEnabled(APP_REALTIME_STORAGE_KEY, false));
+  const [publicRealtimeEnabled, setPublicRealtimeEnabled] = useState(() => getStoredRealtimeEnabled(PUBLIC_REALTIME_STORAGE_KEY, true));
   const [view, setView] = useState("today");
   // top‑level view: home menu vs. journal feature
   const [appView, setAppView] = useState("home");
@@ -140,6 +154,7 @@ export default function App() {
   const [publicListId, setPublicListId] = useState(null);
   const [publicListInternalId, setPublicListInternalId] = useState(null);
   const [publicList, setPublicList] = useState(null);
+  const realtimeEnabled = publicListKey ? publicRealtimeEnabled : appRealtimeEnabled;
 
   const isUuid = useCallback((v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v), []);
 
@@ -308,6 +323,15 @@ export default function App() {
     localStorage.setItem("theme", valid);
     document.documentElement.setAttribute("data-theme", valid);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem(APP_REALTIME_STORAGE_KEY, String(appRealtimeEnabled));
+  }, [appRealtimeEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem(PUBLIC_REALTIME_STORAGE_KEY, String(publicRealtimeEnabled));
+  }, [publicRealtimeEnabled]);
+
   const [entries, setEntries] = useState({});
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("idle");
@@ -318,6 +342,7 @@ export default function App() {
   const [resetToken, setResetToken] = useState("");
   const [toast, setToast] = useState({ message: "", visible: false });
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [activeSocket, setActiveSocket] = useState(null);
   // keep a constant for the real "today" so we can label toasts appropriately
   const today = currentDate;
   const activeDateLabel = getRelativeDateLabel(activeDate, today);
@@ -366,6 +391,8 @@ export default function App() {
         ? "yesterday"
         : `on ${activeDateLabel}`;
   const socketRef = useRef(null);
+  const appRealtimePreferenceInitializedRef = useRef(false);
+  const publicRealtimePreferenceInitializedRef = useRef(false);
 
   // headers helper including auth token
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
@@ -381,6 +408,22 @@ export default function App() {
     setToast({ message, visible: true });
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
   }, []);
+
+  useEffect(() => {
+    if (!appRealtimePreferenceInitializedRef.current) {
+      appRealtimePreferenceInitializedRef.current = true;
+      return;
+    }
+    showToast(appRealtimeEnabled ? "Realtime updates enabled" : "Realtime updates paused");
+  }, [appRealtimeEnabled, showToast]);
+
+  useEffect(() => {
+    if (!publicRealtimePreferenceInitializedRef.current) {
+      publicRealtimePreferenceInitializedRef.current = true;
+      return;
+    }
+    showToast(publicRealtimeEnabled ? "Public page realtime enabled" : "Public page realtime paused");
+  }, [publicRealtimeEnabled, showToast]);
 
   // ── Offline / online detection ──────────────────────────────────────────────
   useEffect(() => {
@@ -420,13 +463,21 @@ export default function App() {
   // ── Socket.io connection ────────────────────────────────────────────────────
   useEffect(() => {
     // connect if we have a token or we're looking at a public list
-    if (!token && !publicListKey) return;
+    if (!realtimeEnabled || (!token && !publicListKey)) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      setActiveSocket(null);
+      return;
+    }
 
     const socket = io({
       transports: socketTransports,
       auth: token ? { token } : undefined,
     });
     socketRef.current = socket;
+    setActiveSocket(socket);
 
     if (publicListKey) {
       const subscribe = () => socket.emit("public-list:subscribe", {
@@ -479,8 +530,14 @@ export default function App() {
       });
     }
 
-    return () => socket.disconnect();
-  }, [today, showToast, token, publicListId, publicListKey, socketTransports]);
+    return () => {
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+      setActiveSocket((current) => (current === socket ? null : current));
+      socket.disconnect();
+    };
+  }, [today, showToast, token, publicListId, publicListKey, realtimeEnabled, socketTransports, userId]);
 
   // ── Load all entries on mount ───────────────────────────────────────────────
   useEffect(() => {
@@ -689,6 +746,16 @@ export default function App() {
     fontWeight: 600,
     cursor: "pointer",
   };
+  const realtimeToggleStyle = {
+    background: realtimeEnabled ? "var(--surface)" : "var(--surface-soft)",
+    color: "var(--header-text)",
+    border: `1px solid ${realtimeEnabled ? "var(--header-border)" : "var(--ring)"}`,
+    borderRadius: "10px",
+    padding: "7px 10px",
+    fontSize: "12px",
+    fontWeight: 600,
+    cursor: "pointer",
+  };
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const logout = () => {
@@ -714,6 +781,17 @@ export default function App() {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingBottom: "24px" }}>
               <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: "30px", fontWeight: 800, margin: 0 }}>{publicList.name}</h1>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setPublicRealtimeEnabled((current) => !current)}
+                  style={{
+                    ...realtimeToggleStyle,
+                    color: "var(--heading)",
+                    border: `1px solid ${realtimeEnabled ? "var(--border)" : "var(--ring)"}`,
+                  }}
+                >
+                  {realtimeEnabled ? "Realtime on" : "Realtime off"}
+                </button>
                 {canEditPublicList && (
                   <button
                     type="button"
@@ -765,7 +843,10 @@ export default function App() {
     // home/feature picker, with auth embedded
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", padding: "40px 16px" }}>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+          <button type="button" onClick={() => setAppRealtimeEnabled((current) => !current)} style={realtimeToggleStyle}>
+            {appRealtimeEnabled ? "Realtime on" : "Realtime off"}
+          </button>
           <select value={theme} onChange={(e) => setTheme(e.target.value)} style={themeSelectStyle}>
             {THEMES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
@@ -935,6 +1016,9 @@ export default function App() {
               </div>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" onClick={() => setAppRealtimeEnabled((current) => !current)} style={realtimeToggleStyle}>
+                {appRealtimeEnabled ? "Realtime on" : "Realtime off"}
+              </button>
               {appView === "journal" && (
                 <>
                   {["today", "history", "chart"].map(v => (
@@ -954,7 +1038,7 @@ export default function App() {
         {appView === "lists" ? (
           <Lists
             token={token}
-            socket={socketRef.current}
+            socket={activeSocket}
             selectedId={selectedListIdRoute}
             selectedItemId={selectedListItemIdRoute}
             onSelectedListTitle={setSelectedListTitle}
