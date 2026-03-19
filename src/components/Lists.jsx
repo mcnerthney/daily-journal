@@ -49,7 +49,7 @@ function setCachedListItemDetails(userId, data) {
     }
 }
 
-export default function Lists({ token, socket, selectedId: routeSelectedId, selectedItemId: routeSelectedItemId, onSelectList, onCloseList, onOpenItemDetails, onCloseItemDetails, onSelectedListTitle }) {
+export default function Lists({ token, selectedId: routeSelectedId, selectedItemId: routeSelectedItemId, onSelectList, onCloseList, onOpenItemDetails, onCloseItemDetails, onSelectedListTitle }) {
     const [lists, setLists] = useState([]);
     const userId = useMemo(() => getUserIdFromToken(token), [token]);
     const [listsLoaded, setListsLoaded] = useState(false);
@@ -275,28 +275,6 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         const list = lists.find((l) => getListId(l) === String(selectedId || ""));
         setTitleDraft(list?.name || "");
     }, [selectedId, lists]);
-
-    // subscribe to realtime updates
-    useEffect(() => {
-        if (!socket) return;
-        const handler = (updated) => {
-            upsertList(updated);
-        };
-        const delHandler = ({ id }) => {
-            const deletedId = String(id || "");
-            setLists((prev) => prev.filter((l) => getListId(l) !== deletedId));
-            if (String(selectedId || "") === deletedId) {
-                setSelectedId(null);
-                if (onCloseList) onCloseList();
-            }
-        };
-        socket.on("list:updated", handler);
-        socket.on("list:deleted", delHandler);
-        return () => {
-            socket.off("list:updated", handler);
-            socket.off("list:deleted", delHandler);
-        };
-    }, [socket, selectedId, onCloseList]);
 
     const selectList = (id) => {
         const normalizedId = String(id || "");
