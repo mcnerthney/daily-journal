@@ -1199,10 +1199,10 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                 </div>
 
                 <h4 style={{ margin: 0 }}>Items</h4>
-                <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", justifyContent: "flex-end" }}>
                     <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--muted)" }}>
-                        Sort
                         <select
+                            aria-label="Sort items"
                             value={itemSortMode}
                             onChange={(e) => setItemSortMode(e.target.value)}
                             style={{ ...inputStyle, padding: "6px", minWidth: "130px" }}
@@ -1211,6 +1211,8 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                             <option value="alphabetical">Alphabetical</option>
                         </select>
                     </label>
+                </div>
+                <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                     <input
                         ref={newItemInputRef}
                         value={newItem}
