@@ -1470,7 +1470,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                     </div>
                                     {selected.publicSlug && (
                                         <div>
-                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`}  style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
+                                            Slug URL: <a href={`/lists/public/${encodeURIComponent(selected.publicSlug)}`} style={{ color: "var(--muted)", textDecoration: "none" }}>/lists/public/{selected.publicSlug}</a>
                                         </div>
                                     )}
                                     {selected.publicId && (
