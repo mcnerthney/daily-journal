@@ -61,6 +61,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
     const [itemTextDraft, setItemTextDraft] = useState("");
     const [itemNoteDraft, setItemNoteDraft] = useState("");
     const [itemImagesDraft, setItemImagesDraft] = useState([]);
+    const [itemSortMode, setItemSortMode] = useState("order");
     const [newNamePublic, setNewNamePublic] = useState(false);
     const [newItem, setNewItem] = useState("");
     const [shareInput, setShareInput] = useState("");
@@ -336,6 +337,11 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
         setTransferItemId(null);
         setTransferTargetId("");
     }, [transferEnabled]);
+
+    useEffect(() => {
+        setDragOverIndex(null);
+        dragItemId.current = null;
+    }, [itemSortMode, selectedId]);
 
     const applyListUpdate = (updated) => {
         upsertList(updated);
@@ -647,6 +653,19 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
 
     const selected = lists.find((l) => getListId(l) === String(selectedId || "")) || {};
     const selectedExists = Boolean(getListId(selected));
+    const canReorderItems = !selected.archived && itemSortMode === "order";
+    const displayItems = useMemo(() => {
+        const items = [...(selected.items || [])];
+        if (itemSortMode !== "alphabetical") return items;
+        return items.sort((a, b) => {
+            const byText = String(a.text || "").localeCompare(String(b.text || ""), undefined, {
+                sensitivity: "base",
+                numeric: true,
+            });
+            if (byText !== 0) return byText;
+            return getItemId(a).localeCompare(getItemId(b));
+        });
+    }, [selected.items, itemSortMode]);
     const selectedItemSummary = (selected.items || []).find((item) => getItemId(item) === String(selectedItemId || "")) || null;
     const selectedItem = selectedItemDetails && getItemId(selectedItemDetails) === String(selectedItemId || "")
         ? selectedItemDetails
@@ -1181,6 +1200,17 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
 
                 <h4 style={{ margin: 0 }}>Items</h4>
                 <div style={{ marginTop: "8px", marginBottom: "8px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--muted)" }}>
+                        Sort
+                        <select
+                            value={itemSortMode}
+                            onChange={(e) => setItemSortMode(e.target.value)}
+                            style={{ ...inputStyle, padding: "6px", minWidth: "130px" }}
+                        >
+                            <option value="order">Order</option>
+                            <option value="alphabetical">Alphabetical</option>
+                        </select>
+                    </label>
                     <input
                         ref={newItemInputRef}
                         value={newItem}
@@ -1227,11 +1257,12 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                     </div>
                 </div>
                 <ul style={{ padding: 0, listStyle: "none" }}>
-                    {(selected.items || []).map((it, idx) => (
+                    {displayItems.map((it, idx) => (
                         <li
                             key={`${selectedId}-${getItemId(it)}-${it.updatedAt || ""}`}
-                            draggable
+                            draggable={canReorderItems}
                             onDragStart={() => {
+                                if (!canReorderItems) return;
                                 clearLongPressTimer();
                                 dragItemId.current = getItemId(it);
                             }}
@@ -1241,8 +1272,15 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                             onTouchStart={(e) => startItemLongPress(getItemId(it), e)}
                             onTouchEnd={clearLongPressTimer}
                             onTouchCancel={clearLongPressTimer}
-                            onDragOver={(e) => { e.preventDefault(); setDragOverIndex(idx); }}
-                            onDrop={async () => { await reorderItems(idx); }}
+                            onDragOver={(e) => {
+                                if (!canReorderItems) return;
+                                e.preventDefault();
+                                setDragOverIndex(idx);
+                            }}
+                            onDrop={async () => {
+                                if (!canReorderItems) return;
+                                await reorderItems(idx);
+                            }}
                             onDragEnd={() => {
                                 clearLongPressTimer();
                                 setDragOverIndex(null);
@@ -1253,7 +1291,7 @@ export default function Lists({ token, socket, selectedId: routeSelectedId, sele
                                 display: "grid",
                                 gap: "6px",
                                 marginBottom: "8px",
-                                borderTop: dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
+                                borderTop: canReorderItems && dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
                             }}
                         >
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
