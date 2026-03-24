@@ -12,6 +12,7 @@ export default defineConfig({
       manifest: {
         name: 'Notebook',
         short_name: 'Notebook',
+        start_url: null,
         description: 'Daily journal and lists',
         theme_color: '#ffffff',
         background_color: '#ffffff',
