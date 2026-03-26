@@ -68,9 +68,9 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
     const [error, setError] = useState("");
     const dragItemId = useRef(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
-    const [trashOver, setTrashOver] = useState(false);
     const dragListId = useRef(null);
-    const longPressTimer = useRef(null);
+    const [activeRowItemId, setActiveRowItemId] = useState(null);
+    const [pendingDeleteItemId, setPendingDeleteItemId] = useState(null);
     const [dragOverListId, setDragOverListId] = useState(null);
     const [showArchived, setShowArchived] = useState(false);
     const [transferItemId, setTransferItemId] = useState(null);
@@ -319,16 +319,12 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
     useEffect(() => {
         setDragOverIndex(null);
         dragItemId.current = null;
+        setActiveRowItemId(null);
+        setPendingDeleteItemId(null);
     }, [itemSortMode, selectedId]);
 
     const applyListUpdate = (updated) => {
         upsertList(updated);
-    };
-
-    const clearLongPressTimer = () => {
-        if (!longPressTimer.current) return;
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
     };
 
     const openItemDetails = (itemId) => {
@@ -353,26 +349,6 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
         setSelectedItemId(null);
         setSelectedItemDetails(null);
     };
-
-    const startItemLongPress = (itemId, event) => {
-        if (selected.archived) return;
-        if (!itemId) return;
-        const target = event?.target;
-        if (target?.closest && target.closest("button, select, textarea, a, label, input[type='checkbox']")) {
-            return;
-        }
-        clearLongPressTimer();
-        longPressTimer.current = setTimeout(() => {
-            openItemDetails(itemId);
-            longPressTimer.current = null;
-        }, 550);
-    };
-
-    useEffect(() => {
-        return () => {
-            clearLongPressTimer();
-        };
-    }, []);
 
     const saveNewList = async () => {
         if (!newName.trim()) return;
@@ -1206,201 +1182,249 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
                         disabled={!!selected.archived}
                         style={{ ...inputStyle, flex: 1, minWidth: "220px", padding: "6px" }}
                     />
-                    <div
-                        onDragOver={(e) => { e.preventDefault(); setTrashOver(true); }}
-                        onDragLeave={() => setTrashOver(false)}
-                        onDrop={async () => {
-                            setTrashOver(false);
-                            if (dragItemId.current) {
-                                const itemId = dragItemId.current;
-                                dragItemId.current = null;
-                                await deleteItem(itemId);
-                            }
-                        }}
-                        title="Drop here to delete"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "36px",
-                            height: "36px",
-                            borderRadius: "6px",
-                            border: `2px solid ${trashOver ? "var(--error)" : "transparent"}`,
-                            background: trashOver ? "var(--error-soft)" : "transparent",
-                            fontSize: "18px",
-                            flexShrink: 0,
-                            transition: "all 0.15s",
-                            cursor: "default",
-                        }}
-                    >
-                        🗑️
-                    </div>
                 </div>
                 <ul style={{ padding: 0, listStyle: "none" }}>
-                    {displayItems.map((it, idx) => (
-                        <li
-                            key={`${selectedId}-${getItemId(it)}-${it.updatedAt || ""}`}
-                            draggable={canReorderItems}
-                            onDragStart={() => {
-                                if (!canReorderItems) return;
-                                clearLongPressTimer();
-                                dragItemId.current = getItemId(it);
-                            }}
-                            onMouseDown={(e) => startItemLongPress(getItemId(it), e)}
-                            onMouseUp={clearLongPressTimer}
-                            onMouseLeave={clearLongPressTimer}
-                            onTouchStart={(e) => startItemLongPress(getItemId(it), e)}
-                            onTouchEnd={clearLongPressTimer}
-                            onTouchCancel={clearLongPressTimer}
-                            onDragOver={(e) => {
-                                if (!canReorderItems) return;
-                                e.preventDefault();
-                                setDragOverIndex(idx);
-                            }}
-                            onDrop={async () => {
-                                if (!canReorderItems) return;
-                                await reorderItems(idx);
-                            }}
-                            onDragEnd={() => {
-                                clearLongPressTimer();
-                                setDragOverIndex(null);
-                                setTrashOver(false);
-                                dragItemId.current = null;
-                            }}
-                            style={{
-                                display: "grid",
-                                gap: "6px",
-                                marginBottom: "8px",
-                                borderTop: canReorderItems && dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
-                            }}
-                        >
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <div
-                                    aria-hidden="true"
-                                    title="Drag item"
-                                    style={{
-                                        width: "12px",
-                                        alignSelf: "stretch",
-                                        borderRadius: "4px",
-                                        background: "transparent",
-                                        cursor: "grab",
-                                        flexShrink: 0,
-                                    }}
-                                />
-                                <input
-                                    type="checkbox"
-                                    checked={it.done}
-                                    onChange={() => toggleItem(getItemId(it))}
-                                    style={{
-                                        width: "16px",
-                                        height: "16px",
-                                        accentColor: it.done ? "var(--muted)" : "var(--text)",
-                                        cursor: "pointer",
-                                        flexShrink: 0,
-                                    }}
-                                />
-                                <input
-                                    defaultValue={it.text}
-                                    onBlur={(e) => renameItem(getItemId(it), e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") e.currentTarget.blur();
-                                    }}
-                                    style={{
-                                        ...inputStyle,
-                                        flex: 1,
-                                        padding: "6px",
-                                        color: it.done ? "var(--muted)" : "var(--text)",
-                                    }}
-                                    disabled={!!selected.archived}
-                                />
-                                {(it.hasAttachments || String(it.note || "").trim() || Number(it.imageCount || 0) > 0) && (
+                    {displayItems.map((it, idx) => {
+                        const itemId = getItemId(it);
+                        const showQuickActions = activeRowItemId === itemId;
+                        const pendingDelete = pendingDeleteItemId === itemId;
+                        return (
+                            <li
+                                key={`${selectedId}-${itemId}-${it.updatedAt || ""}`}
+                                onMouseEnter={() => {
+                                    setActiveRowItemId(itemId);
+                                    setPendingDeleteItemId((current) => (current === itemId ? current : null));
+                                }}
+                                onMouseLeave={() => {
+                                    setActiveRowItemId((current) => (current === itemId ? null : current));
+                                    setPendingDeleteItemId((current) => (current === itemId ? null : current));
+                                }}
+                                onFocus={() => {
+                                    setActiveRowItemId(itemId);
+                                }}
+                                onBlur={(e) => {
+                                    const nextTarget = e.relatedTarget;
+                                    if (!nextTarget || !e.currentTarget.contains(nextTarget)) {
+                                        setActiveRowItemId((current) => (current === itemId ? null : current));
+                                        setPendingDeleteItemId((current) => (current === itemId ? null : current));
+                                    }
+                                }}
+                                onDragOver={(e) => {
+                                    if (!canReorderItems) return;
+                                    e.preventDefault();
+                                    setDragOverIndex(idx);
+                                }}
+                                onDrop={async () => {
+                                    if (!canReorderItems) return;
+                                    await reorderItems(idx);
+                                }}
+                                onDragEnd={() => {
+                                    setDragOverIndex(null);
+                                    dragItemId.current = null;
+                                }}
+                                style={{
+                                    display: "grid",
+                                    gap: "6px",
+                                    marginBottom: "8px",
+                                    padding: "4px",
+                                    borderRadius: "8px",
+                                    background: showQuickActions ? "var(--surface-soft)" : "transparent",
+                                    borderTop: canReorderItems && dragOverIndex === idx ? "2px solid var(--ring)" : "2px solid transparent",
+                                }}
+                            >
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                                     <button
                                         type="button"
-                                        onClick={() => openItemDetails(getItemId(it))}
-                                        title="Has note details"
-                                        aria-label="Has note details"
+                                        title="Drag item"
+                                        aria-label="Drag item"
+                                        draggable={canReorderItems}
+                                        onDragStart={(e) => {
+                                            if (!canReorderItems) return;
+                                            dragItemId.current = itemId;
+                                            e.dataTransfer.effectAllowed = "move";
+                                            e.dataTransfer.setData("text/plain", itemId);
+                                        }}
+                                        onDragEnd={() => {
+                                            setDragOverIndex(null);
+                                            dragItemId.current = null;
+                                        }}
                                         style={{
-                                            background: "none",
+                                            width: "22px",
+                                            height: "22px",
+                                            borderRadius: "4px",
+                                            background: "transparent",
                                             border: "none",
                                             padding: 0,
-                                            fontSize: "14px",
                                             color: "var(--muted)",
-                                            lineHeight: 1,
+                                            cursor: canReorderItems ? "grab" : "default",
                                             flexShrink: 0,
-                                            cursor: "pointer",
                                         }}
+                                        disabled={!canReorderItems}
                                     >
-                                        📝
+                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                                            <circle cx="3" cy="2" r="1" />
+                                            <circle cx="3" cy="6" r="1" />
+                                            <circle cx="3" cy="10" r="1" />
+                                            <circle cx="9" cy="2" r="1" />
+                                            <circle cx="9" cy="6" r="1" />
+                                            <circle cx="9" cy="10" r="1" />
+                                        </svg>
                                     </button>
-                                )}
-                                {!selected.archived && transferEnabled && (
-                                    <button
-                                        type="button"
-                                        onClick={() => openTransferPanel(getItemId(it))}
+                                    <input
+                                        type="checkbox"
+                                        checked={it.done}
+                                        onChange={() => toggleItem(itemId)}
                                         style={{
-                                            ...createButtonStyle,
-                                            padding: "6px 10px",
-                                            fontSize: "12px",
+                                            width: "16px",
+                                            height: "16px",
+                                            accentColor: it.done ? "var(--muted)" : "var(--text)",
+                                            cursor: "pointer",
+                                            flexShrink: 0,
                                         }}
-                                    >
-                                        {transferItemId === getItemId(it) ? "Close" : "Share / Copy"}
-                                    </button>
-                                )}
-                                <div
-                                    aria-hidden="true"
-                                    title="Drag item"
-                                    style={{
-                                        width: "12px",
-                                        alignSelf: "stretch",
-                                        borderRadius: "4px",
-                                        background: "transparent",
-                                        cursor: "grab",
-                                        flexShrink: 0,
-                                    }}
-                                />
-                            </div>
-                            {transferEnabled && transferItemId === getItemId(it) && (
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", paddingLeft: "22px" }}>
-                                    {transferTargets.length > 0 ? (
-                                        <>
-                                            <select
-                                                value={transferTargetId}
-                                                onChange={(e) => setTransferTargetId(e.target.value)}
-                                                style={{ ...inputStyle, padding: "6px", minWidth: "180px" }}
-                                            >
-                                                <option value="" disabled>Select destination</option>
-                                                {transferTargets.map((list) => (
-                                                    <option key={getListId(list)} value={getListId(list)}>
-                                                        {list.archived ? `${list.name} (archived)` : list.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleTransferItem(getItemId(it), "share")}
-                                                disabled={!transferTargetId}
-                                                style={{ ...createButtonStyle, padding: "6px 10px", fontSize: "12px" }}
-                                            >
-                                                Share
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleTransferItem(getItemId(it), "copy")}
-                                                disabled={!transferTargetId}
-                                                style={{ ...createButtonStyle, padding: "6px 10px", fontSize: "12px" }}
-                                            >
-                                                Copy
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <div style={{ color: "var(--muted)", fontSize: "12px" }}>
-                                            Create another list first, then you can share or copy this item.
-                                        </div>
+                                    />
+                                    <input
+                                        defaultValue={it.text}
+                                        onBlur={(e) => renameItem(itemId, e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") e.currentTarget.blur();
+                                        }}
+                                        style={{
+                                            ...inputStyle,
+                                            flex: 1,
+                                            padding: "6px",
+                                            color: it.done ? "var(--muted)" : "var(--text)",
+                                        }}
+                                        disabled={!!selected.archived}
+                                    />
+                                    {showQuickActions && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPendingDeleteItemId(null);
+                                                openItemDetails(itemId);
+                                            }}
+                                            title="Open note"
+                                            aria-label="Open note"
+                                            style={{
+                                                width: "22px",
+                                                height: "22px",
+                                                background: "transparent",
+                                                border: "1px solid var(--border)",
+                                                borderRadius: "999px",
+                                                padding: 0,
+                                                fontSize: "12px",
+                                                color: "var(--text)",
+                                                lineHeight: 1,
+                                                flexShrink: 0,
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <path d="M4 5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" />
+                                                <path d="M14 3v6h6" />
+                                                <path d="M8 13h8" />
+                                                <path d="M8 17h5" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                    {showQuickActions && !selected.archived && (
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                if (pendingDelete) {
+                                                    await deleteItem(itemId);
+                                                    setPendingDeleteItemId(null);
+                                                    return;
+                                                }
+                                                setPendingDeleteItemId(itemId);
+                                            }}
+                                            title={pendingDelete ? "Click again to confirm delete" : "Delete item"}
+                                            aria-label={pendingDelete ? "Confirm delete item" : "Delete item"}
+                                            style={{
+                                                width: pendingDelete ? "58px" : "22px",
+                                                height: "22px",
+                                                background: pendingDelete ? "var(--error-soft)" : "transparent",
+                                                border: pendingDelete ? "1px solid var(--error)" : "1px solid var(--border)",
+                                                borderRadius: "999px",
+                                                padding: pendingDelete ? "0 8px" : 0,
+                                                fontSize: "12px",
+                                                color: "var(--error)",
+                                                lineHeight: 1,
+                                                flexShrink: 0,
+                                                cursor: "pointer",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                gap: "4px",
+                                            }}
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                                <path d="M3 6h18" />
+                                                <path d="M8 6V4h8v2" />
+                                                <path d="M19 6l-1 14H6L5 6" />
+                                                <path d="M10 11v6" />
+                                                <path d="M14 11v6" />
+                                            </svg>
+                                            {pendingDelete ? "Confirm" : null}
+                                        </button>
+                                    )}
+                                    {showQuickActions && !selected.archived && transferEnabled && (
+                                        <button
+                                            type="button"
+                                            onClick={() => openTransferPanel(itemId)}
+                                            style={{
+                                                ...createButtonStyle,
+                                                padding: "6px 10px",
+                                                fontSize: "12px",
+                                            }}
+                                        >
+                                            {transferItemId === itemId ? "Close" : "Share / Copy"}
+                                        </button>
                                     )}
                                 </div>
-                            )}
-                        </li>
-                    ))}
+                                {transferEnabled && transferItemId === itemId && (
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", paddingLeft: "22px" }}>
+                                        {transferTargets.length > 0 ? (
+                                            <>
+                                                <select
+                                                    value={transferTargetId}
+                                                    onChange={(e) => setTransferTargetId(e.target.value)}
+                                                    style={{ ...inputStyle, padding: "6px", minWidth: "180px" }}
+                                                >
+                                                    <option value="" disabled>Select destination</option>
+                                                    {transferTargets.map((list) => (
+                                                        <option key={getListId(list)} value={getListId(list)}>
+                                                            {list.archived ? `${list.name} (archived)` : list.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTransferItem(itemId, "share")}
+                                                    disabled={!transferTargetId}
+                                                    style={{ ...createButtonStyle, padding: "6px 10px", fontSize: "12px" }}
+                                                >
+                                                    Share
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTransferItem(itemId, "copy")}
+                                                    disabled={!transferTargetId}
+                                                    style={{ ...createButtonStyle, padding: "6px 10px", fontSize: "12px" }}
+                                                >
+                                                    Copy
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <div style={{ color: "var(--muted)", fontSize: "12px" }}>
+                                                Create another list first, then you can share or copy this item.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
                 </ul>
 
                 {isOwner && (
