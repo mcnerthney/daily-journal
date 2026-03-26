@@ -1433,14 +1433,6 @@ app.delete("/api/entries/:date", auth, async (req, res) => {
 
 const hasClientBuild = fs.existsSync(CLIENT_DIST_PATH);
 if (hasClientBuild) {
-  // Service worker and manifest must never be served from a stale HTTP cache,
-  // otherwise the browser may use an old SW that hasn't precached index.html yet,
-  // causing ERR_INTERNET_DISCONNECTED on offline refreshes.
-  app.get(["/sw.js", "/manifest.webmanifest", "/registerSW.js"], (_req, res, next) => {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    next();
-  });
-
   // Hashed assets (JS/CSS bundles) are immutable – long-lived caching is safe.
   app.use("/assets", express.static(path.join(CLIENT_DIST_PATH, "assets"), {
     maxAge: "1y",
