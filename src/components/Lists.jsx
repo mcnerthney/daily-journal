@@ -1187,6 +1187,13 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
                     {displayItems.map((it, idx) => {
                         const itemId = getItemId(it);
                         const showQuickActions = activeRowItemId === itemId;
+                        const hasNoteOrAttachments = Boolean(
+                            String(it.note || "").trim() ||
+                            Number(it.imageCount || 0) > 0 ||
+                            !!it.hasAttachments ||
+                            (Array.isArray(it.images) && it.images.length > 0)
+                        );
+                        const showNoteAction = showQuickActions || hasNoteOrAttachments;
                         const pendingDelete = pendingDeleteItemId === itemId;
                         return (
                             <li
@@ -1233,43 +1240,45 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
                                 }}
                             >
                                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                    <button
-                                        type="button"
-                                        title="Drag item"
-                                        aria-label="Drag item"
-                                        draggable={canReorderItems}
-                                        onDragStart={(e) => {
-                                            if (!canReorderItems) return;
-                                            dragItemId.current = itemId;
-                                            e.dataTransfer.effectAllowed = "move";
-                                            e.dataTransfer.setData("text/plain", itemId);
-                                        }}
-                                        onDragEnd={() => {
-                                            setDragOverIndex(null);
-                                            dragItemId.current = null;
-                                        }}
-                                        style={{
-                                            width: "22px",
-                                            height: "22px",
-                                            borderRadius: "4px",
-                                            background: "transparent",
-                                            border: "none",
-                                            padding: 0,
-                                            color: "var(--muted)",
-                                            cursor: canReorderItems ? "grab" : "default",
-                                            flexShrink: 0,
-                                        }}
-                                        disabled={!canReorderItems}
-                                    >
-                                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-                                            <circle cx="3" cy="2" r="1" />
-                                            <circle cx="3" cy="6" r="1" />
-                                            <circle cx="3" cy="10" r="1" />
-                                            <circle cx="9" cy="2" r="1" />
-                                            <circle cx="9" cy="6" r="1" />
-                                            <circle cx="9" cy="10" r="1" />
-                                        </svg>
-                                    </button>
+                                    {itemSortMode === "order" && (
+                                        <button
+                                            type="button"
+                                            title="Drag item"
+                                            aria-label="Drag item"
+                                            draggable={canReorderItems}
+                                            onDragStart={(e) => {
+                                                if (!canReorderItems) return;
+                                                dragItemId.current = itemId;
+                                                e.dataTransfer.effectAllowed = "move";
+                                                e.dataTransfer.setData("text/plain", itemId);
+                                            }}
+                                            onDragEnd={() => {
+                                                setDragOverIndex(null);
+                                                dragItemId.current = null;
+                                            }}
+                                            style={{
+                                                width: "22px",
+                                                height: "22px",
+                                                borderRadius: "4px",
+                                                background: "transparent",
+                                                border: "none",
+                                                padding: 0,
+                                                color: "var(--muted)",
+                                                cursor: canReorderItems ? "grab" : "default",
+                                                flexShrink: 0,
+                                            }}
+                                            disabled={!canReorderItems}
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                                                <circle cx="3" cy="2" r="1" />
+                                                <circle cx="3" cy="6" r="1" />
+                                                <circle cx="3" cy="10" r="1" />
+                                                <circle cx="9" cy="2" r="1" />
+                                                <circle cx="9" cy="6" r="1" />
+                                                <circle cx="9" cy="10" r="1" />
+                                            </svg>
+                                        </button>
+                                    )}
                                     <input
                                         type="checkbox"
                                         checked={it.done}
@@ -1296,7 +1305,7 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
                                         }}
                                         disabled={!!selected.archived}
                                     />
-                                    {showQuickActions && (
+                                    {showNoteAction && (
                                         <button
                                             type="button"
                                             onClick={() => {
@@ -1308,8 +1317,8 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
                                             style={{
                                                 width: "22px",
                                                 height: "22px",
-                                                background: "transparent",
-                                                border: "1px solid var(--border)",
+                                                background: hasNoteOrAttachments ? "var(--ring-soft)" : "transparent",
+                                                border: hasNoteOrAttachments ? "1px solid var(--ring)" : "1px solid var(--border)",
                                                 borderRadius: "999px",
                                                 padding: 0,
                                                 fontSize: "12px",
