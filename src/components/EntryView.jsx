@@ -1,10 +1,19 @@
 import React from "react";
 import { formatDate } from "../utils";
 import ScoreBar from "./ScoreBar";
-import { WORKOUTS } from "../data";
+import { MOODS, WORKOUTS } from "../data";
 
 export default function EntryView({ entry, date, onEdit }) {
-    const mood = null; // mood rendering left to parent if needed
+    const mood = MOODS.find((m) => m.value === entry.mood) || null;
+    const moodBarColor = mood
+        ? {
+            1: "#dc2626",
+            2: "#f97316",
+            3: "#eab308",
+            4: "#84cc16",
+            5: "#16a34a",
+        }[mood.value] || "var(--ring)"
+        : "var(--ring)";
     const counts = [
         { label: `💊 ${(entry.medications || []).length}`, active: (entry.medications || []).length > 0 },
         { label: `🥗 ${(entry.food || []).length}`, active: (entry.food || []).length > 0 },
@@ -17,7 +26,15 @@ export default function EntryView({ entry, date, onEdit }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                 <div>
                     <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "4px" }}>{formatDate(date)}</div>
-                    {mood && <div style={{ display: "flex", alignItems: "center", gap: "6px", color: mood.color, fontWeight: 600, fontSize: "14px" }}><span style={{ fontSize: "18px" }}>{mood.emoji}</span>{mood.label}</div>}
+                    {mood && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", maxWidth: "220px" }}>
+                            <span style={{ fontSize: "18px", color: mood.color }}>{mood.emoji}</span>
+                            <span style={{ color: mood.color, fontWeight: 600, fontSize: "14px" }}>{mood.label}</span>
+                            <div style={{ flex: 1 }}>
+                                <ScoreBar score={mood.value} max={5} color={moodBarColor} />
+                            </div>
+                        </div>
+                    )}
                     {(entry.systolic || entry.diastolic) && (
                         <div style={{ marginTop: "4px", fontSize: "12px", color: "var(--muted)" }}>🩺 {entry.systolic || "--"}/{entry.diastolic || "--"}</div>
                     )}
