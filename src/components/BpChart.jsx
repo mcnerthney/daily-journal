@@ -31,7 +31,7 @@ export default function BpChart({ entries }) {
     const min = Math.min(75, lowestDia);
     const range = Math.max(max - min, 1);
 
-    const width = 200, height = 240;
+    const width = diaArr.length * 40, height = 240;
     const plotPadding = { top: 28, right: 16, bottom: 56, left: 40 };
     const xAxisLabelY = height - 18;
     const colors = { systolic: 'var(--accent-med)', diastolic: 'var(--accent-primary)' };
