@@ -23,7 +23,6 @@ const CLIENT_DIST_PATH = process.env.CLIENT_DIST_PATH || path.resolve(__dirname,
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-change-me";
 const APP_BASE_URL = process.env.APP_BASE_URL || "http://localhost:3000";
 const EMAIL_FROM = process.env.EMAIL_FROM || "no-reply@daily-journal.local";
-const PASSWORD_RESET_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30);
 
 const SMTP_HOST = process.env.SMTP_HOST || "";
 const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
@@ -41,7 +40,7 @@ app.use(express.json({ limit: "10mb" }));
 
 app.use((err, _req, res, next) => {
   if (err?.type === "entity.too.large") {
-    return res.status(413).json({ error: "Image is too large. Please choose a smaller file." });
+    return res.status(413).json({ error: "Image is too large. Please choose a smaller file (<10mb)." });
   }
   return next(err);
 });
@@ -56,10 +55,6 @@ function generateRawToken() {
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
-}
-
-function tokenExpiryDate(minutes) {
-  return new Date(Date.now() + minutes * 60 * 1000);
 }
 
 function buildClientUrl(paramName, token) {
@@ -651,7 +646,9 @@ app.post("/api/password-reset/request", async (req, res) => {
       {
         $set: {
           passwordResetTokenHash: hashToken(resetToken),
-          passwordResetExpiresAt: tokenExpiryDate(PASSWORD_RESET_TTL_MINUTES),
+        },
+        $unset: {
+          passwordResetExpiresAt: "",
         },
       }
     );
@@ -671,10 +668,9 @@ app.post("/api/password-reset/confirm", async (req, res) => {
 
     const user = await db.collection("users").findOne({
       passwordResetTokenHash: hashToken(token),
-      passwordResetExpiresAt: { $gt: new Date() },
     });
 
-    if (!user) return res.status(400).json({ error: "Invalid or expired reset token" });
+    if (!user) return res.status(400).json({ error: "Invalid reset token" });
 
     const hash = await bcrypt.hash(password, 10);
     await db.collection("users").updateOne(
