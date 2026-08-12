@@ -1202,9 +1202,12 @@ export default function Lists({ token, selectedId: routeSelectedId, selectedItem
                                     setActiveRowItemId(itemId);
                                     setPendingDeleteItemId((current) => (current === itemId ? current : null));
                                 }}
-                                onMouseLeave={() => {
-                                    setActiveRowItemId((current) => (current === itemId ? null : current));
-                                    setPendingDeleteItemId((current) => (current === itemId ? null : current));
+                                onMouseLeave={(e) => {
+                                    const nextTarget = e.relatedTarget;
+                                    if (!nextTarget || !e.currentTarget.contains(nextTarget)) {
+                                        setActiveRowItemId((current) => (current === itemId ? null : current));
+                                        setPendingDeleteItemId((current) => (current === itemId ? null : current));
+                                    }
                                 }}
                                 onFocus={() => {
                                     setActiveRowItemId(itemId);
